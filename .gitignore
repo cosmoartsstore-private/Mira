@@ -1,0 +1,26 @@
+node_modules/
+dist/
+src-tauri/target/
+
+# IDE & editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code local settings
+.claude/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Environment
+.env
+.env.*
+
+# Build artifacts
+*.exe
+*.msi
+*.nsis

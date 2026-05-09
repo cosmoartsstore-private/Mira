@@ -1,0 +1,403 @@
+/* ===== Envelope Stage (Mira Snapshot) ===== */
+.env-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.env-stage.show {
+  display: flex;
+}
+
+/* ===== Leaf ===== */
+.env-leaf {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  bottom: 25%;
+  right: -100px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.env-leaf.flying {
+  animation: envLeafFly 2.4s cubic-bezier(0.4, 0.1, 0.3, 1) forwards;
+}
+
+@keyframes envLeafFly {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translate(-50vw, -25vh) rotate(180deg); }
+  90% { opacity: 1; }
+  100% { transform: translate(-115vw, -50vh) rotate(360deg); opacity: 0; }
+}
+
+/* ===== Letter Notification ===== */
+.env-letter-notify {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.env-letter-notify.show {
+  animation: envLetterAppear 0.6s ease-out forwards;
+}
+
+.env-letter-notify.fade-out {
+  animation: envLetterFade 0.6s ease-in forwards;
+}
+
+@keyframes envLetterAppear {
+  from { opacity: 0; transform: translate(-50%, -45%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+@keyframes envLetterFade {
+  to { opacity: 0; transform: translate(-50%, -55%); }
+}
+
+.env-letter-text {
+  font-family: var(--content-font);
+  font-size: 28px;
+  color: var(--ink);
+  line-height: 1.6;
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.env-letter-text-inner {
+  display: inline-block;
+  padding-right: 8px;
+}
+
+.env-letter-text.writing .env-letter-text-inner {
+  animation: envTextReveal 1.8s steps(40, end) forwards;
+  clip-path: inset(0 100% 0 0);
+}
+
+@keyframes envTextReveal {
+  to { clip-path: inset(0 0 0 0); }
+}
+
+/* ===== Envelope ===== */
+.envelope-wrap {
+  position: relative;
+  width: 480px;
+  max-width: 86vw;
+  height: 320px;
+  perspective: 1800px;
+  z-index: 8;
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+}
+
+.envelope-wrap.appear {
+  animation: envAppear 0.7s ease-out forwards;
+}
+
+@keyframes envAppear {
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.envelope-wrap.recede {
+  animation: envRecede 0.5s ease-in forwards;
+}
+
+@keyframes envRecede {
+  to { opacity: 0; transform: translateY(-30px) scale(0.9); }
+}
+
+.envelope {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+
+.env-body {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #e8d8b8 0%, #d4c098 60%, #b89970 100%);
+  border: 1px solid #a08560;
+  box-shadow: 0 8px 32px rgba(74, 61, 46, 0.25);
+}
+
+.env-front {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #e8d8b8 0%, #d4c098 60%, #b89970 100%);
+  clip-path: polygon(0 35%, 100% 35%, 100% 100%, 0 100%);
+  z-index: 4;
+  border-bottom: 1px solid #a08560;
+}
+
+.env-front::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 35%;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(160, 133, 96, 0) 0%, rgba(160, 133, 96, 0.15) 100%);
+  pointer-events: none;
+}
+
+.env-fold-lines {
+  position: absolute;
+  left: 0;
+  top: 35%;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.env-fold-lines svg {
+  width: 100%;
+  height: 100%;
+}
+
+.env-flap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60%;
+  background: linear-gradient(180deg, #d4c098 0%, #b89970 100%);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transform-origin: top center;
+  z-index: 3;
+  border-top: 1px solid #a08560;
+  transition: transform 0.9s cubic-bezier(0.6, 0, 0.4, 1);
+}
+
+.envelope-wrap.flap-open .env-flap {
+  transform: rotateX(-180deg);
+}
+
+.env-seal {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 70px;
+  height: 70px;
+  z-index: 6;
+  transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.8s;
+}
+
+.env-seal svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 3px 6px rgba(74, 22, 12, 0.4));
+}
+
+.envelope-wrap.seal-broken .env-seal {
+  transform: translate(-50%, -240%) rotate(38deg) scale(0.85);
+  opacity: 0;
+}
+
+/* Folded letter inside envelope */
+.folded-letter {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 38%;
+  bottom: 12%;
+  background: #fefaf0;
+  border: 1px solid var(--paper-deep);
+  z-index: 2;
+  transform-origin: bottom center;
+  transform: scaleY(0);
+  box-shadow: 0 2px 8px rgba(74, 61, 46, 0.15);
+}
+
+.envelope-wrap.letter-rising .folded-letter {
+  animation: letterRise 1.1s 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes letterRise {
+  0% { transform: scaleY(0) translateY(0); }
+  100% { transform: scaleY(1) translateY(-30%); }
+}
+
+/* ===== Unfolded Letter ===== */
+.unfolded-letter {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.5);
+  width: 720px;
+  max-width: 92vw;
+  background: #fefaf0;
+  border: 1px solid var(--paper-deep);
+  box-shadow: 0 16px 56px rgba(74, 61, 46, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 12;
+  transform-origin: center;
+}
+
+.unfolded-letter.show {
+  animation: unfoldLetter 1.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: auto;
+}
+
+@keyframes unfoldLetter {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotateX(80deg); }
+  40% { opacity: 1; transform: translate(-50%, -50%) scale(0.7) rotateX(40deg); }
+  70% { transform: translate(-50%, -50%) scale(0.95) rotateX(10deg); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotateX(0deg); }
+}
+
+.unfolded-letter .letter-body {
+  padding: 56px 72px;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 35px,
+      rgba(45, 58, 92, 0.06) 35px,
+      rgba(45, 58, 92, 0.06) 36px
+    ),
+    #fefaf0;
+  min-height: 400px;
+  position: relative;
+}
+
+.unfolded-letter .letter-body::before,
+.unfolded-letter .letter-body::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(74, 61, 46, 0.08);
+  pointer-events: none;
+}
+
+.unfolded-letter .letter-body::before { top: 33.33%; }
+.unfolded-letter .letter-body::after { top: 66.66%; }
+
+.unfolded-letter .letter-greeting {
+  font-family: var(--content-font);
+  font-size: 20px;
+  color: var(--ink);
+  line-height: 1.6;
+  margin-bottom: 28px;
+  border-bottom: 1px dotted var(--rule);
+  padding-bottom: 16px;
+  opacity: 0;
+}
+
+.unfolded-letter.show .letter-greeting {
+  animation: snapshotFadeUp 0.6s 1.0s ease-out forwards;
+}
+
+@keyframes snapshotFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.unfolded-letter .summary-grid-q {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  margin-bottom: 24px;
+}
+
+.unfolded-letter .summary-grid-q .stat-row {
+  border-bottom: 1px dotted rgba(201, 184, 150, 0.5);
+  padding-bottom: 12px;
+  opacity: 0;
+}
+
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(1) { animation: snapshotFadeUp 0.5s 1.2s ease-out forwards; }
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(2) { animation: snapshotFadeUp 0.5s 1.3s ease-out forwards; }
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(3) { animation: snapshotFadeUp 0.5s 1.4s ease-out forwards; }
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(4) { animation: snapshotFadeUp 0.5s 1.5s ease-out forwards; }
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(5) { animation: snapshotFadeUp 0.5s 1.6s ease-out forwards; }
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(6) { animation: snapshotFadeUp 0.5s 1.7s ease-out forwards; }
+
+.unfolded-letter .stat-row .label {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.unfolded-letter .stat-row .value {
+  font-family: var(--content-font);
+  font-size: 17px;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.unfolded-letter .stat-row .value .num {
+  color: var(--dusk-red);
+  font-weight: 500;
+  font-size: 22px;
+  margin-right: 4px;
+}
+
+.unfolded-letter .letter-footer {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dotted var(--rule);
+  text-align: right;
+  font-family: var(--content-font);
+  font-size: 15px;
+  color: var(--ink-soft);
+  opacity: 0;
+}
+
+.unfolded-letter.show .letter-footer {
+  animation: snapshotFadeUp 0.6s 1.9s ease-out forwards;
+}
+
+.unfolded-letter .letter-footer .signature {
+  font-family: var(--logo-font);
+  font-size: 32px;
+  color: var(--dusk-red);
+  margin-top: 4px;
+  display: block;
+}
+
+/* ===== Close Hint ===== */
+.env-close-hint {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 12px;
+  letter-spacing: 0.25em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.env-close-hint.show {
+  animation: envHintFade 0.6s 0.5s ease-out forwards;
+}
+
+@keyframes envHintFade {
+  to { opacity: 0.7; }
+}

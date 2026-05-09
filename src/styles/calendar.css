@@ -1,0 +1,339 @@
+/* ===== Calendar ===== */
+.calendar-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.cal-month-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.cal-month-name {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 28px;
+  color: var(--ink);
+}
+
+.cal-month-name .year {
+  color: var(--ink-faint);
+  font-size: 18px;
+  margin-right: 10px;
+}
+
+.cal-arrow {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  border-radius: 2px;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.cal-arrow:hover {
+  border-color: var(--dusk-orange);
+  color: var(--dusk-red);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  background: var(--paper-deep);
+  padding: 1px;
+  border: 1px solid var(--rule);
+}
+
+.cal-head {
+  background: var(--paper-warm);
+  padding: 12px 8px;
+  text-align: center;
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.cal-head.saturday {
+  color: #4a7ab5;
+}
+
+.cal-head.sunday {
+  color: var(--dusk-red);
+}
+
+.cal-day {
+  background: var(--paper);
+  min-height: 90px;
+  text-align: left;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.cal-day:hover {
+  background: var(--paper-warm);
+}
+
+.cal-day .num {
+  font-family: var(--content-font);
+  font-size: 18px;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.cal-day.saturday .num {
+  color: #4a7ab5;
+}
+
+.cal-day.sunday .num {
+  color: var(--dusk-red);
+}
+
+.cal-day.holiday .num {
+  color: var(--dusk-red);
+}
+
+.cal-day .holiday-name {
+  font-family: var(--content-font);
+  font-size: 10px;
+  color: var(--dusk-red);
+  margin-top: 3px;
+  line-height: 1.2;
+  opacity: 0.85;
+}
+
+.cal-day .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dusk-orange);
+  margin-top: 6px;
+  display: inline-block;
+}
+
+.cal-day.empty {
+  background: rgba(244, 237, 224, 0.5);
+  cursor: default;
+  min-height: 90px;
+}
+
+.cal-day.empty:hover {
+  background: rgba(244, 237, 224, 0.5);
+}
+
+.cal-day.today {
+  background: rgba(212, 154, 74, 0.2);
+}
+
+.cal-day.today::after {
+  content: '';
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dusk-gold);
+}
+
+.cal-day.no-data .num {
+  color: var(--ink-mute);
+}
+
+.cal-day.no-data {
+  cursor: default;
+}
+
+.cal-day.no-data:hover {
+  background: var(--paper);
+}
+
+.cal-legend {
+  margin-top: 14px;
+  text-align: right;
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 11px;
+  color: var(--ink-faint);
+  letter-spacing: 0.1em;
+}
+
+.cal-legend .legend-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--dusk-orange);
+  margin: 0 6px 0 14px;
+  vertical-align: middle;
+}
+
+.cal-legend .legend-dot.holiday {
+  background: var(--dusk-red);
+}
+
+.cal-legend .legend-dot.event {
+  background: var(--night-indigo);
+}
+
+/* ===== Event Tags ===== */
+
+.cal-event-tag {
+  font-family: var(--content-font);
+  font-size: 10px;
+  color: var(--paper);
+  background: var(--night-indigo);
+  padding: 2px 6px;
+  margin-top: 4px;
+  border-radius: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.cal-event-tag:hover {
+  background: var(--dusk-red);
+}
+
+/* ===== Calendar Popup ===== */
+
+.cal-popup {
+  position: absolute;
+  z-index: 100;
+  top: 100%;
+  left: 0;
+  min-width: 240px;
+  background: var(--card);
+  border: 1px solid var(--paper-deep);
+  box-shadow: 0 8px 24px rgba(74, 61, 46, 0.2);
+  padding: 14px 16px;
+  animation: memo-fade-up 0.25s ease both;
+}
+
+.cal-popup-title {
+  font-family: var(--content-font);
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.cal-popup-detail {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-faint);
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+
+.cal-popup-input {
+  width: 100%;
+  padding: 6px 10px;
+  font-family: var(--content-font);
+  font-size: 14px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 2px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.cal-popup-input:focus {
+  outline: none;
+  border-color: var(--dusk-orange);
+}
+
+.cal-popup-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.cal-popup-time {
+  flex: 1;
+  padding: 5px 8px;
+  font-family: var(--content-font);
+  font-size: 13px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 2px;
+}
+
+.cal-popup-remind {
+  flex: 1;
+  padding: 5px 8px;
+  font-family: var(--content-font);
+  font-size: 13px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 2px;
+}
+
+.cal-popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cal-popup-cancel,
+.cal-popup-save,
+.cal-popup-delete {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+.cal-popup-save {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.cal-popup-save:hover {
+  background: var(--dusk-red);
+  border-color: var(--dusk-red);
+}
+
+.cal-popup-cancel:hover {
+  border-color: var(--dusk-orange);
+  color: var(--ink);
+}
+
+.cal-popup-delete {
+  color: var(--dusk-red);
+  border-color: var(--dusk-red);
+}
+
+.cal-popup-delete:hover {
+  background: var(--dusk-red);
+  color: var(--paper);
+}

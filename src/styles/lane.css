@@ -1,0 +1,382 @@
+.lane-wrap {
+  background: var(--card);
+  border: 1px solid var(--paper-deep);
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  transition: flex 0.5s ease, max-width 0.5s ease, opacity 0.12s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.lane-wrap.lane-switching {
+  opacity: 0;
+}
+
+.home-page.focus-mode .lane-wrap {
+  flex: 0 0 22%;
+  max-width: 22%;
+}
+
+.home-page.focus-mode .lane-header {
+  grid-template-columns: 50px 1fr;
+}
+
+.home-page.focus-mode .day-head:not(.focused) {
+  display: none;
+}
+
+.home-page.focus-mode .lane-body {
+  grid-template-columns: 50px 1fr;
+  overflow-y: auto;
+}
+
+.home-page.focus-mode .hour-grid-line {
+  display: none;
+}
+
+.home-page.focus-mode .day-lane:not(.focused) {
+  display: none;
+}
+
+/* ===== Lane Header ===== */
+
+.lane-header {
+  display: grid;
+  grid-template-columns: 50px repeat(7, 1fr);
+  background: var(--paper-warm);
+  border-bottom: 1px solid var(--paper-deep);
+}
+
+.lane-corner {
+  border-right: 1px solid var(--paper-deep);
+}
+
+.day-head {
+  padding: 8px 4px;
+  text-align: center;
+  border-left: 1px dotted rgba(201, 184, 150, 0.5);
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.4s, transform 0.5s;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.day-head:first-of-type {
+  border-left: none;
+}
+
+.day-head:hover {
+  background: rgba(212, 154, 74, 0.1);
+}
+
+.day-head .wd {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.day-head .num {
+  font-family: var(--content-font);
+  font-size: 21px;
+  color: var(--ink);
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+.day-head.today {
+  background: rgba(212, 154, 74, 0.18);
+}
+
+.day-head.today .num {
+  color: var(--dusk-red);
+}
+
+.day-head.focused {
+  background: rgba(212, 154, 74, 0.28);
+}
+
+.day-head.inactive {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.day-head.inactive:hover {
+  background: transparent;
+}
+
+/* ===== Lane Body (time grid) ===== */
+
+.lane-body {
+  display: grid;
+  grid-template-columns: 50px repeat(7, 1fr);
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.time-axis {
+  border-right: 1px solid var(--paper-deep);
+  position: relative;
+}
+
+.hour-mark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: calc(12px * var(--zoom-scale, 1));
+  color: var(--ink-faint);
+  text-align: right;
+  padding-right: 8px;
+  transform: translateY(-50%);
+  letter-spacing: 0.05em;
+}
+
+.hour-grid-line {
+  position: absolute;
+  left: 50px;
+  right: 0;
+  height: 1px;
+  background: rgba(201, 184, 150, 0.3);
+  pointer-events: none;
+}
+
+.focus-grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(201, 184, 150, 0.35);
+  pointer-events: none;
+}
+
+.day-lane {
+  position: relative;
+  border-left: 1px dotted rgba(201, 184, 150, 0.4);
+  transition: opacity 0.3s, background 0.3s;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.day-lane:first-of-type {
+  border-left: none;
+}
+
+.day-lane.today {
+  background: rgba(212, 154, 74, 0.06);
+}
+
+.day-lane.focused {
+  background: rgba(212, 154, 74, 0.1);
+}
+
+/* ===== Visit Blocks ===== */
+
+.visit-block {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--ink);
+  line-height: 1.3;
+  overflow: hidden;
+  border-left: 3px solid;
+  transition: padding 0.4s, font-size 0.4s;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  z-index: 1;
+  min-height: 4px;
+  box-sizing: border-box;
+}
+
+.visit-block .v-name,
+.visit-block .v-time {
+  opacity: 0;
+  transition: opacity 0.3s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.day-lane.focused .visit-block {
+  padding: calc(8px * var(--zoom-scale, 1)) 14px;
+  cursor: pointer;
+}
+
+.day-lane.focused .visit-block .v-name {
+  opacity: 1;
+  font-weight: 500;
+  font-size: calc(14px * var(--zoom-scale, 1));
+  margin-bottom: 4px;
+  transition-delay: 0.4s;
+}
+
+.day-lane.focused .visit-block .v-time {
+  opacity: 1;
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: calc(13px * var(--zoom-scale, 1));
+  color: var(--ink-soft);
+  letter-spacing: 0.05em;
+  transition-delay: 0.45s;
+}
+
+.visit-block.visit-compact {
+  padding: 0 8px;
+  min-height: 2px;
+}
+
+.visit-block.visit-compact .v-name,
+.visit-block.visit-compact .v-time {
+  display: none;
+}
+
+.day-lane.focused .visit-block.visit-compact .v-name,
+.day-lane.focused .visit-block.visit-compact .v-time {
+  display: none;
+}
+
+.visit-block.visit-selected {
+  outline: 2px solid var(--dusk-gold);
+  outline-offset: -1px;
+  z-index: 2;
+}
+
+/* ===== Lane Footer ===== */
+
+.lane-foot {
+  padding: 10px 14px;
+  border-top: 1px solid var(--paper-deep);
+  background: var(--paper-warm);
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-faint);
+  letter-spacing: 0.1em;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ===== Zoom Controls (focus mode) ===== */
+
+.lane-zoom {
+  display: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 6px 14px;
+  border-top: 1px solid var(--paper-deep);
+  background: var(--paper-warm);
+  flex-shrink: 0;
+}
+
+.home-page.focus-mode .lane-zoom {
+  display: flex;
+}
+
+.home-page.focus-mode .lane-foot {
+  display: none;
+}
+
+.zoom-label {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-soft);
+  letter-spacing: 0.1em;
+}
+
+.zoom-hint {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-mute);
+  letter-spacing: 0.05em;
+}
+
+/* ===== Notification Pins ===== */
+
+.notif-pin {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  height: 20px;
+  border-radius: 10px;
+  background: rgba(212, 154, 74, 0.25);
+  border: 1px solid rgba(212, 154, 74, 0.5);
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  font-size: 11px;
+  color: var(--dusk-red);
+  font-family: var(--heading-font);
+  font-style: italic;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  z-index: 5;
+  transition: background 0.2s;
+}
+
+.notif-pin:hover {
+  background: rgba(212, 154, 74, 0.4);
+}
+
+.notif-pin::before {
+  content: "📌";
+  font-size: 10px;
+  margin-right: 4px;
+  font-style: normal;
+}
+
+/* ===== Entrance Animations ===== */
+
+@keyframes lane-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes visit-fade-in {
+  from {
+    opacity: 0;
+    transform: scaleY(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+.day-head {
+  animation: lane-fade-in 0.35s ease both;
+}
+
+.day-head:nth-of-type(1) { animation-delay: 0.03s; }
+.day-head:nth-of-type(2) { animation-delay: 0.06s; }
+.day-head:nth-of-type(3) { animation-delay: 0.09s; }
+.day-head:nth-of-type(4) { animation-delay: 0.12s; }
+.day-head:nth-of-type(5) { animation-delay: 0.15s; }
+.day-head:nth-of-type(6) { animation-delay: 0.18s; }
+.day-head:nth-of-type(7) { animation-delay: 0.21s; }
+
+.visit-block {
+  animation: visit-fade-in 0.4s ease both;
+  transform-origin: top;
+}

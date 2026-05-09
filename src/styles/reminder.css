@@ -1,0 +1,73 @@
+.startup-reminder {
+  position: fixed;
+  top: 56px;
+  right: 20px;
+  z-index: 100;
+  background: var(--card);
+  border: 1px solid var(--paper-deep);
+  box-shadow: 0 8px 32px rgba(74, 61, 46, 0.15);
+  padding: 18px 22px;
+  max-width: 340px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.4s, transform 0.4s;
+}
+
+.startup-reminder.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.startup-reminder-title {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 14px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.startup-reminder-title::before {
+  content: "✦";
+  color: var(--dusk-orange);
+}
+
+.reminder-item {
+  padding: 7px 0;
+  border-bottom: 1px dotted rgba(201, 184, 150, 0.4);
+  font-size: 15px;
+  color: var(--ink);
+  font-family: var(--content-font);
+}
+
+.reminder-item:last-child {
+  border-bottom: none;
+}
+
+.reminder-item .time {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-faint);
+  margin-right: 8px;
+}
+
+.reminder-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  color: var(--ink-mute);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+}
+
+.reminder-close:hover {
+  color: var(--ink);
+}

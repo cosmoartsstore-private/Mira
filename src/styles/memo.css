@@ -1,0 +1,436 @@
+.memo-paper {
+  flex: 0 0 0;
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: flex 0.5s ease, max-width 0.5s ease, opacity 0.4s 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.home-page.focus-mode .memo-paper {
+  flex: 0 0 calc(85% - 16px);
+  max-width: calc(85% - 16px);
+  opacity: 1;
+}
+
+.memo-inner {
+  background:
+    linear-gradient(180deg, rgba(42, 32, 24, 0.25) 0%, rgba(42, 32, 24, 0.08) 8%, transparent 20%),
+    url('../assets/textures/wood-wall.jpg');
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(74, 61, 46, 0.4);
+  box-shadow:
+    inset 0 2px 8px rgba(0, 0, 0, 0.15),
+    0 8px 32px rgba(74, 61, 46, 0.12);
+  padding: 32px 36px;
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.memo-inner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(42, 32, 24, 0.12);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ===== Memo Content ===== */
+
+.memo-date {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 15px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: rgba(244, 237, 224, 0.85);
+  margin-bottom: 12px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== Notebook-style memo card ===== */
+
+.memo-note-card {
+  position: relative;
+  z-index: 1;
+  --nb-line-height: 38px;
+  --nb-margin-left: 48px;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent calc(var(--nb-line-height) - 1px),
+      rgba(140, 170, 210, 0.3) calc(var(--nb-line-height) - 1px),
+      rgba(140, 170, 210, 0.3) var(--nb-line-height)
+    ),
+    linear-gradient(135deg, #fefcf6 0%, #faf4e6 100%);
+  border: 1px solid rgba(160, 140, 110, 0.5);
+  box-shadow:
+    3px 4px 10px rgba(0, 0, 0, 0.18),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 20px 28px 20px var(--nb-margin-left);
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.memo-note-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--nb-margin-left) - 12px);
+  width: 2px;
+  background: rgba(220, 80, 80, 0.4);
+  z-index: 1;
+}
+
+.memo-note-card::after {
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: 8px;
+  bottom: 12px;
+  width: 20px;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 28px,
+      rgba(160, 160, 160, 0.6) 28px,
+      rgba(160, 160, 160, 0.6) 30px,
+      transparent 30px,
+      transparent 36px
+    );
+  mask-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 28px,
+    black 28px,
+    black 36px,
+    transparent 36px,
+    transparent 44px
+  );
+  -webkit-mask-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 28px,
+    black 28px,
+    black 36px,
+    transparent 36px,
+    transparent 44px
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+.memo-title {
+  font-family: var(--content-font);
+  font-size: 28px;
+  color: var(--ink);
+  line-height: 42px;
+  margin-bottom: 16px;
+  border-bottom: 1px dotted var(--rule);
+  padding-bottom: 8px;
+}
+
+.memo-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px;
+  background: rgba(250, 244, 232, 0.92);
+  border: 1px solid rgba(201, 184, 150, 0.5);
+  box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.08);
+  position: relative;
+  z-index: 1;
+}
+
+.memo-stat {
+  text-align: center;
+}
+
+.memo-stat .lbl {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 2px;
+}
+
+.memo-stat .val {
+  font-family: var(--content-font);
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.memo-stat .val .num {
+  color: var(--dusk-red);
+  font-weight: 500;
+}
+
+/* ===== Memo Text ===== */
+
+.memo-text {
+  font-family: var(--memo-font);
+  font-size: 20px;
+  color: var(--ink);
+  line-height: var(--nb-line-height);
+}
+
+.memo-textarea {
+  width: 100%;
+  height: 480px;
+  padding: 7px 0;
+  border: none;
+  background: transparent;
+  font-family: var(--memo-font);
+  font-size: 20px;
+  line-height: var(--nb-line-height);
+  color: var(--ink);
+  resize: none;
+  overflow-y: auto;
+}
+
+.memo-textarea::placeholder {
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+.memo-textarea:focus {
+  outline: none;
+}
+
+.memo-counter {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-mute);
+  text-align: right;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+/* ===== Marker View ===== */
+
+.memo-marker-view {
+  font-family: var(--memo-font);
+  font-size: 20px;
+  line-height: var(--nb-line-height);
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  height: 480px;
+  padding: 7px 0;
+  cursor: text;
+  overflow-y: auto;
+}
+
+.memo-marker-view:empty::before {
+  content: "今日のことを書き留める…";
+  color: var(--ink-mute);
+  font-style: italic;
+}
+
+.marker-underline {
+  padding: 0 3px;
+  font-weight: 500;
+  cursor: default;
+}
+
+.marker-underline[data-kind="world"] {
+  background: linear-gradient(180deg, transparent 60%, var(--marker-world) 60%);
+}
+
+.marker-underline[data-kind="person"] {
+  background: linear-gradient(180deg, transparent 60%, var(--marker-person) 60%);
+}
+
+.marker-underline[data-kind="red"] {
+  background: linear-gradient(180deg, transparent 60%, rgba(208, 64, 64, 0.35) 60%);
+}
+
+.marker-underline[data-kind="blue"] {
+  background: linear-gradient(180deg, transparent 60%, rgba(64, 128, 192, 0.35) 60%);
+}
+
+.marker-underline[data-kind="green"] {
+  background: linear-gradient(180deg, transparent 60%, rgba(64, 160, 96, 0.35) 60%);
+}
+
+.marker-underline[data-kind="orange"] {
+  background: linear-gradient(180deg, transparent 60%, rgba(212, 154, 74, 0.35) 60%);
+}
+
+.marker-underline[data-kind="manual"] {
+  background: linear-gradient(180deg, transparent 60%, rgba(176, 128, 96, 0.35) 60%);
+}
+
+/* ===== Marker Context Menu ===== */
+
+.marker-context-menu {
+  position: fixed;
+  z-index: 150;
+  background: var(--card);
+  border: 1px solid var(--paper-deep);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 4px 0;
+  min-width: 100px;
+}
+
+.marker-menu-item {
+  padding: 6px 16px;
+  font-family: var(--content-font);
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.marker-menu-item:hover {
+  background: rgba(212, 154, 74, 0.15);
+}
+
+.marker-menu-item[data-color="red"]::before {
+  content: 'Aa';
+  font-size: 11px;
+  margin-right: 8px;
+  background: linear-gradient(180deg, transparent 60%, rgba(208, 64, 64, 0.35) 60%);
+  padding: 0 2px;
+}
+
+.marker-menu-item[data-color="blue"]::before {
+  content: 'Aa';
+  font-size: 11px;
+  margin-right: 8px;
+  background: linear-gradient(180deg, transparent 60%, rgba(64, 128, 192, 0.35) 60%);
+  padding: 0 2px;
+}
+
+.marker-menu-item[data-color="green"]::before {
+  content: 'Aa';
+  font-size: 11px;
+  margin-right: 8px;
+  background: linear-gradient(180deg, transparent 60%, rgba(64, 160, 96, 0.35) 60%);
+  padding: 0 2px;
+}
+
+.marker-menu-item[data-color="orange"]::before {
+  content: 'Aa';
+  font-size: 11px;
+  margin-right: 8px;
+  background: linear-gradient(180deg, transparent 60%, rgba(212, 154, 74, 0.35) 60%);
+  padding: 0 2px;
+}
+
+.marker-menu-item.remove {
+  color: var(--dusk-red);
+  border-top: 1px solid var(--rule);
+}
+
+.marker-menu-sep {
+  height: 1px;
+  background: var(--rule);
+  margin: 2px 0;
+}
+
+.memo-empty {
+  text-align: center;
+  padding: 80px 20px;
+  color: var(--ink-faint);
+  font-family: var(--content-font);
+  font-size: 17px;
+  line-height: 36px;
+}
+
+/* ===== Entrance Animations ===== */
+
+@keyframes memo-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.memo-date {
+  animation: memo-fade-up 0.5s ease both;
+  animation-delay: 0.05s;
+}
+
+.memo-note-card {
+  animation: memo-fade-up 0.5s ease both;
+  animation-delay: 0.12s;
+}
+
+.kitto-sticker-board {
+  animation: memo-fade-up 0.45s ease both;
+  animation-delay: 0.2s;
+}
+
+.memo-stats {
+  animation: memo-fade-up 0.45s ease both;
+  animation-delay: 0.28s;
+}
+
+.memo-photos {
+  animation: memo-fade-up 0.5s ease both;
+  animation-delay: 0.36s;
+}
+
+/* ===== Join記録 ===== */
+
+.join-record {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 16px;
+  animation: memo-fade-up 0.4s ease both;
+}
+
+.join-record-title {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: rgba(244, 237, 224, 0.7);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(244, 237, 224, 0.2);
+}
+
+.join-record-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.join-record-name {
+  font-family: var(--content-font);
+  font-size: 13px;
+  color: rgba(244, 237, 224, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(244, 237, 224, 0.2);
+  padding: 4px 10px;
+  border-radius: 2px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: background 0.2s ease;
+}
+
+.join-record-name:hover {
+  background: rgba(255, 255, 255, 0.18);
+}

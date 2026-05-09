@@ -1,0 +1,72 @@
+/* ===== Debug Page (dev only) ===== */
+.debug-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.debug-section {
+  background: var(--card);
+  border: 1px solid var(--paper-deep);
+  margin-bottom: 16px;
+  padding: 18px 22px;
+}
+
+.debug-section h3 {
+  font-family: var(--ui-font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px dotted var(--rule);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.debug-output {
+  background: #1a1a1a;
+  color: #e0e0e0;
+  font-family: "Consolas", "SF Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 14px 16px;
+  border-radius: 4px;
+  overflow-x: auto;
+  max-height: 300px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+}
+
+.debug-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.debug-btn {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-family: "Consolas", "SF Mono", monospace;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+
+.debug-btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+.debug-btn:active {
+  transform: scale(0.96);
+}

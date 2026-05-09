@@ -1,0 +1,196 @@
+/* ===== Summary Overlay ===== */
+.summary-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(244, 237, 224, 0);
+  transition: background 0.6s;
+  pointer-events: none;
+}
+
+.summary-overlay.visible {
+  background: rgba(244, 237, 224, 0.92);
+  pointer-events: auto;
+}
+
+.summary-canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ===== Petal (sakura / leaf / momiji) — swooping loop path ===== */
+.summary-petal {
+  position: absolute;
+  pointer-events: none;
+  line-height: 0;
+  animation:
+    petalPath var(--dur, 7s) linear forwards,
+    petalSpin var(--dur, 7s) linear forwards,
+    petalWobble 1.2s ease-in-out infinite alternate;
+  will-change: transform, left, top;
+}
+
+@keyframes petalPath {
+  0% {
+    left: calc(100vw + 40px);
+    top: var(--start-y, 15vh);
+  }
+  15% {
+    left: 75vw;
+    top: var(--mid-y, 45vh);
+  }
+  30% {
+    left: calc(var(--loop-cx, 50vw) + var(--loop-r, 6vw));
+    top: var(--loop-y, 35vh);
+  }
+  42% {
+    left: var(--loop-cx, 50vw);
+    top: calc(var(--loop-y, 35vh) + var(--loop-r, 6vw));
+  }
+  54% {
+    left: calc(var(--loop-cx, 50vw) - var(--loop-r, 6vw));
+    top: var(--loop-y, 35vh);
+  }
+  66% {
+    left: var(--loop-cx, 50vw);
+    top: calc(var(--loop-y, 35vh) - var(--loop-r, 6vw));
+  }
+  80% {
+    left: 20vw;
+    top: var(--end-y, 70vh);
+  }
+  100% {
+    left: -60px;
+    top: var(--end-y, 70vh);
+  }
+}
+
+@keyframes petalSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(var(--spin, 1080deg)); }
+}
+
+@keyframes petalWobble {
+  from { margin-top: calc(var(--wobble, 15px) * -0.5); }
+  to { margin-top: calc(var(--wobble, 15px) * 0.5); }
+}
+
+/* ===== Snow — falls from top ===== */
+.summary-petal.snow {
+  animation:
+    snowFall var(--dur, 7s) linear forwards,
+    snowSpin var(--dur, 7s) linear forwards,
+    snowDrift 2s ease-in-out infinite alternate;
+  left: var(--start-x, 50vw);
+  top: -30px;
+}
+
+@keyframes snowFall {
+  from { top: -30px; }
+  to { top: calc(100vh + 30px); }
+}
+
+@keyframes snowSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(var(--spin, 360deg)); }
+}
+
+@keyframes snowDrift {
+  from { margin-left: calc(var(--drift, 20px) * -0.5); }
+  to { margin-left: calc(var(--drift, 20px) * 0.5); }
+}
+
+/* ===== Summary Content ===== */
+.summary-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.8s 0.5s;
+  pointer-events: none;
+}
+
+.summary-overlay.visible .summary-content {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.summary-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.summary-logo {
+  font-family: var(--logo-font);
+  font-size: 72px;
+  color: var(--ink);
+  line-height: 1;
+  margin-bottom: 12px;
+}
+
+.summary-period {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 16px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.summary-stats {
+  display: flex;
+  gap: 48px;
+  margin-bottom: 40px;
+}
+
+.summary-stat {
+  text-align: center;
+}
+
+.summary-stat-num {
+  font-family: var(--content-font);
+  font-size: 42px;
+  color: var(--dusk-red);
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.summary-stat-label {
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.summary-message {
+  font-family: var(--content-font);
+  font-size: 20px;
+  color: var(--ink-soft);
+  margin-bottom: 36px;
+}
+
+.summary-close {
+  padding: 8px 24px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--heading-font);
+  font-style: italic;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+.summary-close:hover {
+  border-color: var(--dusk-orange);
+  color: var(--dusk-red);
+}
