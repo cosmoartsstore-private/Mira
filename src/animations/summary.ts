@@ -22,8 +22,8 @@ const SEASON_SVGS: Record<Season, string[]> = {
 };
 
 function getSeason(month: number): Season {
-  if (month >= 3 && month <= 4) return "sakura";
-  if (month >= 5 && month <= 8) return "leaf";
+  if (month >= 3 && month <= 5) return "sakura";
+  if (month >= 6 && month <= 8) return "leaf";
   if (month >= 9 && month <= 11) return "momiji";
   return "snow";
 }

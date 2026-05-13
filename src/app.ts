@@ -55,7 +55,10 @@ export async function initApp(): Promise<void> {
     if (currentPageSubs) {
       currentPageSubs.dispose();
     }
-    focusedDate.set(null);
+    // CalendarPage は home 遷移前に focusedDate をセットするため、ここでは消さない
+    if (tab !== "home") {
+      focusedDate.set(null);
+    }
     currentPageSubs = new Subscriptions();
     pageContainer.innerHTML = "";
     pageContainer.appendChild(pages[tab](currentPageSubs));

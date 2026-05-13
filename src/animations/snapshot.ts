@@ -164,16 +164,19 @@ async function runAnimation(
   closeHint.classList.add("show");
 
   // Phase 9: Close on click
+  let closed = false;
+  const escHandler = (e: KeyboardEvent): void => {
+    if (e.key === "Escape") close();
+  };
   const close = (): void => {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener("keydown", escHandler);
+    stage.removeEventListener("click", close);
     stage.style.opacity = "0";
     stage.style.transition = "opacity 0.5s";
     setTimeout(() => stage.remove(), 500);
   };
   stage.addEventListener("click", close);
-  document.addEventListener("keydown", function handler(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      close();
-      document.removeEventListener("keydown", handler);
-    }
-  });
+  document.addEventListener("keydown", escHandler);
 }

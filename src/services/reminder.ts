@@ -19,6 +19,7 @@ let intervalId: number | undefined;
 
 // リマインダーのポーリングを開始する
 export function startReminderService(): void {
+  if (intervalId !== undefined) return;
   intervalId = window.setInterval(pollReminders, 30_000);
 }
 

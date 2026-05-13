@@ -93,7 +93,9 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
 
     const eventsByDay = new Map<number, CalendarEvent[]>();
     for (const evt of events) {
-      const day = parseInt(evt.scheduled_at.split(/[-T ]/)[2], 10);
+      const dayPart = evt.scheduled_at.split(/[-T ]/)[2];
+      const day = parseInt(dayPart ?? "", 10);
+      if (Number.isNaN(day)) continue;
       if (!eventsByDay.has(day)) eventsByDay.set(day, []);
       eventsByDay.get(day)!.push(evt);
     }

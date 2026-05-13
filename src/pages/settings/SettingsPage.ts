@@ -234,26 +234,6 @@ function createSelectRow(label: string, id: string, options: { value: string; la
   return row;
 }
 
-// 文字列トグル付きの設定行を生成する
-function createToggleRow(label: string, options: { value: string; label: string }[], current: string): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "setting-row";
-  row.innerHTML = `<span class="label">${label}</span>`;
-  const toggleRow = document.createElement("div");
-  toggleRow.className = "toggle-row";
-  toggleRow.dataset.toggleGroup = "font_scope";
-  for (const opt of options) {
-    const btn = document.createElement("button");
-    btn.className = "toggle-btn";
-    btn.dataset.value = opt.value;
-    btn.textContent = opt.label;
-    if (opt.value === current) btn.classList.add("on");
-    toggleRow.appendChild(btn);
-  }
-  row.appendChild(toggleRow);
-  return row;
-}
-
 // ON/OFFブール切替付きの設定行を生成する
 function createBoolToggleRowKeyed(label: string, key: string, current: boolean): HTMLElement {
   const row = document.createElement("div");

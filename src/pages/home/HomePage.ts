@@ -314,7 +314,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       const focusedLane = laneBody.querySelector<HTMLElement>(".day-lane.focused");
       if (focusedLane) {
         const frag = document.createDocumentFragment();
-        for (let h = lastHourStart; h <= lastHourEnd; h += 2) {
+        for (let h = lastHourStart; h < lastHourEnd; h += 2) {
           const line = document.createElement("div");
           line.className = "focus-grid-line";
           line.style.top = `${((h - lastHourStart) / lastTotalHours) * 100}%`;
@@ -563,10 +563,12 @@ export function HomePage(subs: Subscriptions): HTMLElement {
 
     const marks: UnderlineMark[] = [];
     for (const m of autoMarkers) {
-      marks.push({ start: m.start, end: m.end, kind: m.kind, title: m.text });
+      if (m.start < m.end && m.start < text.length && m.end <= text.length) {
+        marks.push({ start: m.start, end: m.end, kind: m.kind, title: m.text });
+      }
     }
     for (const m of manualMarkers) {
-      if (m.start < text.length && m.end <= text.length) {
+      if (m.start < m.end && m.start < text.length && m.end <= text.length) {
         marks.push({ start: m.start, end: m.end, kind: m.color, title: "", markerId: m.id });
       }
     }
@@ -838,7 +840,10 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     nextBtn.addEventListener("click", (e) => { e.stopPropagation(); current++; update(); });
 
     // ライトボックスを閉じてイベントリスナーを解除する
+    let closed = false;
     function close(): void {
+      if (closed) return;
+      closed = true;
       overlay.classList.remove("visible");
       setTimeout(() => overlay.remove(), 300);
       document.removeEventListener("keydown", keyHandler);
@@ -907,7 +912,13 @@ export function HomePage(subs: Subscriptions): HTMLElement {
   laneBody.addEventListener("wheel", wheelHandler, { passive: false });
   subs.add(() => laneBody.removeEventListener("wheel", wheelHandler));
 
-  loadWeek();
+  // Store.subscribe は登録時に発火しないため、既にセット済みの focusedDate を週ロード後に拾う
+  const pendingFocus = focusedDate.get();
+  loadWeek().then(() => {
+    if (pendingFocus && focusedDate.get() === pendingFocus) {
+      enterFocusMode(pendingFocus);
+    }
+  });
   return container;
 }
 
