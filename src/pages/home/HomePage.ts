@@ -1,9 +1,13 @@
 import { getWeekLaneData, getDayFocusData, saveDayMemo, addManualMarker, removeManualMarker } from "../../api/commands";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { currentWeekStart, focusedDate, stellaConnected, settings, notifications, getMonday, Subscriptions } from "../../state/store";
+import { currentWeekStart, focusedDate, stellaConnected, settings, notifications, getThisWeekStart, Subscriptions } from "../../state/store";
 import type { WeekLaneData, DayFocusData, MarkerSpan, ManualMarker, PhotoEntry } from "../../state/types";
 
-// ホームページ全体を構築して返す
+// HomePage は 2 モードを切り替える単一ページ:
+//   - 週ビュー: 日曜始まり 7 日分のタイムラインレーン (currentWeekStart 駆動)
+//   - フォーカスビュー: 1 日の詳細パネル (focusedDate 駆動、week レーンも縦に拡張表示)
+// 週レーンと詳細パネルを同居させ、focused class の付け外しと CSS で見た目を切替えている。
+// loadGen / memoGen は遅延 await 中に別読込が走った場合に古い結果を破棄するための世代カウンタ。
 export function HomePage(subs: Subscriptions): HTMLElement {
   const container = document.createElement("div");
   container.className = "home-page";
@@ -52,7 +56,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
   todayBtn.className = "today-btn";
   todayBtn.textContent = "今週";
   todayBtn.addEventListener("click", () => {
-    currentWeekStart.set(getMonday());
+    currentWeekStart.set(getThisWeekStart());
   });
 
   weekNav.appendChild(prevWeekBtn);
@@ -110,13 +114,16 @@ export function HomePage(subs: Subscriptions): HTMLElement {
   container.appendChild(backBtn);
   container.appendChild(homeLayout);
 
+  // loadGen: loadWeek() 内の各 await 後に gen 比較し、古い結果の renderLane を抑止する
   let loadGen = 0;
+  // 直近 renderLane が決定した表示時間帯（フォーカスモードのグリッド線計算で使う）
   let lastHourStart = 0;
   let lastHourEnd = 24;
   let lastTotalHours = 24;
+  // フォーカス時のズーム倍率（一度に何時間ぶんを表示するか）。adjustZoom で steps を行き来。
   let visibleHours = 6;
 
-  // 週の日付範囲ラベルを更新する
+  // 週ナビと「week of ...」サブラベルの日付範囲文字列を更新する
   function updateSubLabel(): void {
     const [y, m, d] = currentWeekStart.get().split("-").map(Number);
     const start = new Date(y, m - 1, d);
@@ -126,7 +133,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     weekLabel.textContent = `${start.getFullYear()}年 ${fmt(start)} – ${fmt(end)}`;
   }
 
-  // 表示中の週を前後にずらす
+  // 現在週を offset 週ぶんずらす（Date コンストラクタが日数オーバーフローを自然に処理）
   function shiftWeek(offset: number): void {
     const [y, m, d] = currentWeekStart.get().split("-").map(Number);
     const date = new Date(y, m - 1, d + offset * 7);
@@ -136,12 +143,14 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     currentWeekStart.set(`${ny}-${nm}-${nd}`);
   }
 
-  // 現在週のレーンデータを取得して描画する
+  // 現在週のレーンデータをバックエンドから取得して描画する。
+  // 120ms のフェードアウトを挟むため await が複数回ある → 各 await 後に gen を確認し、
+  // 連打や週切替で古い結果が後勝ちしないようにする。
   async function loadWeek(): Promise<void> {
     const gen = ++loadGen;
     updateSubLabel();
 
-    // Quick fade-out
+    // フェードアウト中（120ms）に視覚的に切替えを示す
     laneWrap.classList.add("lane-switching");
     await new Promise((r) => setTimeout(r, 120));
     if (gen !== loadGen) return;
@@ -162,7 +171,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     laneWrap.classList.remove("lane-switching");
   }
 
-  // 週間タイムラインのヘッダーとレーンを描画する
+  // 週間タイムラインのヘッダー (曜日/日付) と本体 (時間軸 + 7 日分の縦レーン) を描画する。
+  // visit ブロックは絶対配置 (%) で、prevBottomHour による「直前ブロックの底以下に出さない」
+  // 補正で、ごく短い訪問が重なって不可視になるのを防ぐ。
   function renderLane(data: WeekLaneData): void {
     const { hour_start, hour_end } = data;
     const totalHours = hour_end - hour_start;
@@ -266,7 +277,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     }
   }
 
-  // ズーム倍率をレーンに反映する
+  // visibleHours の値に応じて time-axis と focused day-lane の高さを伸縮させる。
+  // フォーカスモード時のみ意味があり、週ビューでは day-lane が height: auto のままなので何もしない。
   function applyZoom(): void {
     if (lastTotalHours <= 0) return;
     const viewH = laneBody.clientHeight;
@@ -284,7 +296,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     zoomLabel.textContent = `${visibleHours}h`;
   }
 
-  // ズームレベルを1段階増減する
+  // ズームレベルを steps[] 上で 1 段階増減する（Shift+ホイールから呼ばれる）
   function adjustZoom(delta: number): void {
     const steps = [1, 2, 3, 4, 6, 8, 12, 24];
     let idx = steps.indexOf(visibleHours);
@@ -295,7 +307,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     applyZoom();
   }
 
-  // 指定日のフォーカスモードに切り替える
+  // 1 日の詳細ビューに切替える: 該当 day-head/day-lane に focused class を付け、
+  // メモ/写真/統計をロードする。グリッド線追加は rAF まで遅らせて DOM サイズ確定後に行う。
   function enterFocusMode(date: string): void {
     container.classList.add("focus-mode");
     laneHeader.querySelectorAll(".day-head").forEach((el) => {
@@ -310,7 +323,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     requestAnimationFrame(() => {
       if (lastTotalHours <= 0) return;
 
-      // フォーカス中のレーンにグリッド線を追加する
+      // フォーカス中レーンにのみ濃いグリッド線を引く（拡大表示で目盛りを読みやすくする）
       const focusedLane = laneBody.querySelector<HTMLElement>(".day-lane.focused");
       if (focusedLane) {
         const frag = document.createDocumentFragment();
@@ -327,7 +340,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     });
   }
 
-  // フォーカスモードを解除して週表示に戻す
+  // フォーカスを解除して週表示に戻す: focused class を全部剥がし、追加した grid 線を撤去
   function exitFocusMode(): void {
     container.classList.remove("focus-mode");
     laneHeader.querySelectorAll(".day-head.focused").forEach((el) => el.classList.remove("focused"));
@@ -345,11 +358,13 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     memoInner.innerHTML = '<div class="memo-empty">日付を選んでください<br>メモが表示されます</div>';
   }
 
+  // memoGen: loadMemo の await 中に別日が選ばれた場合に古い描画を破棄するための世代カウンタ
   let memoGen = 0;
+  // メモ入力 1 秒後に走らせる自動保存タイマー。ページ破棄時に必ず clearTimeout する。
   let memoSaveTimeout: number | undefined;
   subs.add(() => clearTimeout(memoSaveTimeout));
 
-  // 指定日のメモ・統計・写真データを読み込む
+  // 指定日の詳細データを取得して renderMemo に渡す。loadGen と同じ理由で世代比較する。
   async function loadMemo(date: string): Promise<void> {
     const gen = ++memoGen;
     memoInner.innerHTML = '<div class="loading">読み込み中…</div>';
@@ -363,10 +378,13 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     }
   }
 
+  // 訪問ブロッククリックで写真をフィルタするため、最新の photos 要素と全写真を保持しておく
   let activePhotosEl: HTMLElement | null = null;
   let allPhotos: PhotoEntry[] = [];
 
-  // メモ・統計・写真を含む日別詳細パネルを描画する
+  // 日別パネル全体 (見出し/メモカード/めもきっと/統計/写真) を描画する。
+  // markerView と textarea は display 切替で交互に表示し、編集中はテキストエリア、
+  // 通常表示時はマーカー装飾付きの div を見せる。
   function renderMemo(data: DayFocusData): void {
     memoInner.innerHTML = "";
     allPhotos = data.photos;
@@ -452,7 +470,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     wireVisitPhotoFilter(data);
   }
 
-  // 写真サムネイルのグリッドを描画する
+  // 写真サムネイルを最大 maxPhotos (7) 枚まで並べ、超過分は "+N" として lightbox を開く起点にする
   function renderPhotoGrid(photosEl: HTMLElement, photos: PhotoEntry[]): void {
     photosEl.innerHTML = "";
     if (photos.length === 0) {
@@ -487,7 +505,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     photosEl.appendChild(grid);
   }
 
-  // 訪問ブロッククリックで写真フィルタリングとJoin記録を表示する
+  // フォーカス中レーンの訪問ブロックにクリックハンドラを付け、選択中の訪問の時間帯で
+  // 写真をフィルタ、Join 記録（同席ユーザー）を写真の上に挿入する。
+  // 同じブロックを再クリックで解除し、全写真表示に戻す。
   function wireVisitPhotoFilter(data: DayFocusData): void {
     const focusedLane = laneBody.querySelector(".day-lane.focused");
     if (!focusedLane) return;
@@ -520,7 +540,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     });
   }
 
-  // Join記録セクションを構築する
+  // 訪問選択時に写真リストの上に挿入する「Join 記録」(同席ユーザー名チップ) を組み立てる
   function renderJoinRecord(players: string[]): HTMLElement {
     const section = document.createElement("div");
     section.className = "join-record";
@@ -543,6 +563,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     return section;
   }
 
+  // 描画用に自動マーカー (kind=world/person) と手動マーカー (kind=color) を統一表現にする中間型
   interface UnderlineMark {
     start: number;
     end: number;
@@ -551,7 +572,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     markerId?: number;
   }
 
-  // メモ本文にマーカー装飾を付与して描画する
+  // メモ本文をマーカー装飾付きで描画する。
+  // start/end は UTF-16 コードユニット位置 (バックエンドの marker.rs と整合)。
+  // 重複範囲はソート後の dedupe で 1 つだけ採用し、重なる場合は先着優先（cursor で防御）。
   function renderMarkerText(
     el: HTMLElement,
     text: string,
@@ -606,10 +629,12 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     }
   }
 
-  // マーカー追加・削除の右クリックメニューを設定する
+  // 右クリックで色選択メニューを出し、選択範囲に手動マーカーを付ける/削除する。
+  // 既存マーカーの上で右クリックした時のみ「マーカーを消す」項目を追加する。
   function wireMarkerContextMenu(markerView: HTMLElement, data: DayFocusData): void {
     markerView.addEventListener("contextmenu", (e) => {
       e.preventDefault();
+      // 同時に複数メニューが開かないように既存メニューを破棄
       document.querySelectorAll(".marker-context-menu").forEach((m) => m.remove());
 
       const sel = window.getSelection();
@@ -671,6 +696,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
 
       document.body.appendChild(menu);
 
+      // 外側クリックでメニューを閉じる。setTimeout(0) を挟むのは、コンテキストメニューを
+      // 出すきっかけになった click イベントが先に bubble して即閉じてしまうのを避けるため。
       const dismiss = () => {
         menu.remove();
         document.removeEventListener("click", dismiss);
@@ -679,7 +706,10 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     });
   }
 
-  // テキスト選択範囲の文字オフセットを取得する
+  // container 内のテキスト選択範囲を UTF-16 文字オフセットに変換する。
+  // 「container 先頭から range 端まで」の Range を toString() して .length を取る。
+  // JS 文字列は UTF-16 なので .length = UTF-16 コードユニット数となり、
+  // バックエンド (marker.rs) が返す UTF-16 オフセットと一致する。
   function getSelectionOffsets(container: HTMLElement, range: Range): { start: number; end: number } {
     const preRange = document.createRange();
     preRange.selectNodeContents(container);
@@ -694,7 +724,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     return { start, end };
   }
 
-  // めもきっとステッカーボードを構築する
+  // めもきっと: 当日の世界名・ユーザー名をワンクリックでメモに追記できるシールパレット。
+  // 蓋クリックで開閉、シールクリックで insertChipToMemo を呼んで textarea へ追記する。
   function renderMemokittoTray(
     chips: { label: string; category: string }[],
     textarea: HTMLTextAreaElement,
@@ -763,7 +794,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     return board;
   }
 
-  // ステッカー要素を1枚生成する
+  // めもきっとシール1枚を生成する。index で 0.05 秒ずつ animationDelay をずらし、めくれ演出をずらす
   function createSticker(label: string, category: string, index: number): HTMLElement {
     const sticker = document.createElement("div");
     sticker.className = "kitto-sticker";
@@ -773,7 +804,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     return sticker;
   }
 
-  // チップのテキストをメモに挿入して保存する
+  // シールがめくれてメモに張り付く演出 (300ms) の後、textarea に追記して自動保存タイマーを再セット
   function insertChipToMemo(
     chipEl: HTMLElement,
     text: string,
@@ -803,7 +834,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     }, 300);
   }
 
-  // 写真ライトボックスを開いて表示する
+  // 写真の全画面ビューア。前後ナビ・キーボード操作・Esc/オーバーレイクリックで閉じる。
+  // closed フラグで close() の多重実行 (closeBtn クリック → overlay へ bubble) を抑止する。
   function openLightbox(photos: string[], startIndex: number): void {
     let current = startIndex;
     const overlay = document.createElement("div");
@@ -872,7 +904,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     requestAnimationFrame(() => overlay.classList.add("visible"));
   }
 
-  // Subscribe to state
+  // ストア購読: focusedDate ↔ enterFocusMode/exitFocusMode、currentWeekStart 変化で再ロード
   subs.add(
     focusedDate.subscribe((date) => {
       if (date) {
@@ -890,7 +922,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     })
   );
 
-  // Keyboard
+  // 全体キーバインド: Esc でフォーカス解除、←/→ で週送り (フォーカス中は無効化)
   const handler = (e: KeyboardEvent): void => {
     if (e.key === "Escape" && focusedDate.get()) {
       focusedDate.set(null);
@@ -903,7 +935,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
   document.addEventListener("keydown", handler);
   subs.add(() => document.removeEventListener("keydown", handler));
 
-  // Shift+Wheel zoom in focus mode
+  // フォーカス中の Shift + ホイールでズーム調整 (passive: false にして preventDefault を効かせる)
   const wheelHandler = (e: WheelEvent): void => {
     if (!e.shiftKey || !focusedDate.get()) return;
     e.preventDefault();
@@ -922,14 +954,14 @@ export function HomePage(subs: Subscriptions): HTMLElement {
   return container;
 }
 
-// 日付文字列が今日かどうか判定する
+// "YYYY-MM-DD" がローカル日付の今日と一致するかを判定する
 function isToday(dateStr: string): boolean {
   const today = new Date();
   const [y, m, d] = dateStr.split("-").map(Number);
   return today.getFullYear() === y && today.getMonth() + 1 === m && today.getDate() === d;
 }
 
-// 小数時刻を "H:MM" 形式にフォーマットする
+// 小数時刻 (14.5 など) を "H:MM" 形式に整形する。24+ は深夜越え扱いで -24 して 0..23 に丸める。
 function formatHour(hour: number): string {
   const h = Math.floor(hour);
   const m = Math.round((hour - h) * 60);
@@ -937,14 +969,14 @@ function formatHour(hour: number): string {
   return `${display}:${m.toString().padStart(2, "0")}`;
 }
 
-// 分数を "Xh Ym" 形式にフォーマットする
+// 分数を "Xh Ym" (1時間未満なら "Ym") に整形する
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-// HEXカラーをRGBA文字列に変換する
+// "#rrggbb" (7文字想定) と alpha から rgba(...) 文字列を組み立てる
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -952,12 +984,12 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// ローカルファイルパスをTauriアセットURLに変換する
+// Windows ローカルパスを Tauri 経由で読める asset:// URL に変換する
 function convertFilePath(path: string): string {
   return convertFileSrc(path);
 }
 
-// 日時文字列から小数時刻を抽出する
+// 通知の scheduled_at から小数時刻 (hour + min/60) を抽出する。失敗時は 0
 function parseNotifHour(isoStr: string): number {
   try {
     const d = new Date(isoStr);
@@ -967,7 +999,7 @@ function parseNotifHour(isoStr: string): number {
   }
 }
 
-// HTML特殊文字をエスケープする
+// innerHTML / title 属性に流す前の HTML 特殊文字エスケープ (& < > " を実体参照化)
 function esc(str: string): string {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }

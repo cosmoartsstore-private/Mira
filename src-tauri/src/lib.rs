@@ -1,15 +1,25 @@
+//! Mira バックエンドのエントリポイント。
+//! - DB 初期化 (Mira DB は書込可能、STELLA DB は読込専用で接続)
+//! - WebView2 のユーザーデータディレクトリを Mira の Data 配下に固定
+//! - 全 Tauri コマンドを invoke_handler に登録して起動
+
 mod commands;
 mod db;
 mod logic;
 
 use std::path::PathBuf;
 
+/// レジストリ HKCU\Software\CosmoArtsStore\Mira\InstallLocation を引く（インストーラが書き込む値）
 fn get_install_location() -> Option<String> {
     let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
     let key = hkcu.open_subkey(r"Software\CosmoArtsStore\Mira").ok()?;
     key.get_value::<String, _>("InstallLocation").ok()
 }
 
+/// Mira のデータディレクトリを 3 段階フォールバックで決定する。
+/// 1. レジストリ InstallLocation\Data （正規インストール）
+/// 2. 実行ファイルと同階層の Data （ポータブル/開発ビルド）
+/// 3. %LOCALAPPDATA%\CosmoArtsStore\Mira\Data （最終フォールバック）
 fn resolve_data_root() -> PathBuf {
     if let Some(install_dir) = get_install_location() {
         return PathBuf::from(install_dir).join("Data");
@@ -27,10 +37,13 @@ fn resolve_data_root() -> PathBuf {
         .join("Data")
 }
 
-/// Tauriアプリケーションを初期化して起動する
+/// Tauri アプリの起動本体。main.rs から 1 回だけ呼ばれる。
+/// DB を先に初期化して manage() で共有し、WebView2 のキャッシュ位置を環境変数で誘導してから起動する。
 pub fn run() {
     let db_state = db::initialize().expect("Failed to initialize databases");
 
+    // WebView2 のユーザーデータ (Cookie / キャッシュ) を Mira の Data 配下に固定し、
+    // インストーラ/アンインストーラで一括管理できるようにする
     let webview_data_dir = resolve_data_root().join("EBWebView");
     std::fs::create_dir_all(&webview_data_dir).ok();
     std::env::set_var(

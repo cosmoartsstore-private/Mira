@@ -1,6 +1,9 @@
 use rusqlite::{Connection, Result};
 
-/// MiraDBのテーブル作成・マイグレーション・デフォルト設定の投入を行う
+/// Mira DB を最新スキーマに揃える。
+/// 1. CREATE TABLE IF NOT EXISTS で初期テーブル群を作る（初回起動時のみ実体作成）
+/// 2. 後から追加した remind_minutes_before / reminded カラムを未追加なら ALTER で足す
+/// 3. mira_settings に既知の設定キーをデフォルト値で投入 (INSERT OR IGNORE)
 pub fn run(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "
@@ -61,7 +64,10 @@ pub fn run(conn: &Connection) -> Result<()> {
         ",
     )?;
 
-    // remind_minutes_before カラムが未追加なら追加する
+    // 後付けカラム migration:
+    // 初期版の mira_scheduled_events には remind_minutes_before / reminded が無かったため、
+    // pragma_table_info で存在確認した上で ALTER する。既存 DB を持つユーザを壊さないため。
+    // この 2 つは常にセットで追加するので片方の有無だけ見れば十分。
     let has_remind_col: bool = conn
         .prepare("SELECT COUNT(*) FROM pragma_table_info('mira_scheduled_events') WHERE name = 'remind_minutes_before'")
         .and_then(|mut s| s.query_row([], |r| r.get::<_, i32>(0)))
@@ -74,7 +80,8 @@ pub fn run(conn: &Connection) -> Result<()> {
         )?;
     }
 
-    // デフォルト設定値を投入(既存キーはスキップ)
+    // 既知の設定キーにデフォルト値を投入する (既存値は INSERT OR IGNORE で温存)。
+    // ここに無いキーは get_settings の `unwrap_or_default()` で空文字扱いになる。
     let defaults = [
         ("font_family", "Yomogi"),
         ("font_scope", "content_only"),

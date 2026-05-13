@@ -27,11 +27,14 @@ pub struct FavoriteUser {
     pub note: Option<String>,
 }
 
-/// 全設定値をDBから読み込んで返す
+/// mira_settings から MiraSettings 構造体を組み立てて返す。
+/// 「1" → true、それ以外 → false」のルールで真偽値を解釈。
+/// 値が無いキーは unwrap_or_default で空文字扱いとなり、bool は OFF として処理される。
 #[tauri::command]
 pub fn get_settings(state: State<'_, DbState>) -> Result<MiraSettings, String> {
     let mira = state.mira.lock().unwrap();
 
+    // 単純な「キーで value を引いて文字列で返す」クロージャ。失敗時は空文字
     let get = |key: &str| -> String {
         mira.query_row(
             "SELECT value FROM mira_settings WHERE key = ?1",
@@ -54,7 +57,7 @@ pub fn get_settings(state: State<'_, DbState>) -> Result<MiraSettings, String> {
     })
 }
 
-/// 指定キーの設定値を保存(upsert)する
+/// 任意の設定キーに値を upsert する。bool は呼出側で "1"/"0" 文字列に揃える前提。
 #[tauri::command]
 pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Result<(), String> {
     let mira = state.mira.lock().unwrap();
@@ -66,7 +69,8 @@ pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Res
     Ok(())
 }
 
-/// お気に入りユーザー一覧をSTELLAの表示名付きで取得する
+/// Mira の favorite テーブルを引き、STELLA の players から display_name を解決して付与する。
+/// STELLA 未接続 or 名前未取得時は user_id そのものをフォールバック表示名として使う。
 #[tauri::command]
 pub fn get_favorite_users(state: State<'_, DbState>) -> Result<Vec<FavoriteUser>, String> {
     let mira = state.mira.lock().unwrap();
@@ -113,7 +117,7 @@ pub fn get_favorite_users(state: State<'_, DbState>) -> Result<Vec<FavoriteUser>
     Ok(favorites)
 }
 
-/// ユーザーをお気に入りに追加・更新する
+/// お気に入りユーザーを upsert する (INSERT OR REPLACE のため nickname/line_color/note も上書き)
 #[tauri::command]
 pub fn add_favorite_user(
     state: State<'_, DbState>,
@@ -135,7 +139,7 @@ pub fn add_favorite_user(
     Ok(())
 }
 
-/// 指定ユーザーをお気に入りから削除する
+/// 指定 user_id をお気に入りから削除する (該当なしでも成功扱い)
 #[tauri::command]
 pub fn remove_favorite_user(state: State<'_, DbState>, user_id: String) -> Result<(), String> {
     let mira = state.mira.lock().unwrap();

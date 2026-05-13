@@ -21,7 +21,8 @@ pub struct CalendarEvent {
     pub remind_minutes_before: i64,
 }
 
-/// 指定年月のアクティブ日とイベント一覧を取得する
+/// 指定年月のアクティブ日 (STELLA の visit_summary に1件以上ある日) と Mira 側のユーザー予定を一括返却する。
+/// STELLA 未接続 (Option None) ならアクティブ日を空配列で扱い、予定だけ返す。
 #[tauri::command]
 pub fn get_month_data(
     state: State<'_, DbState>,
@@ -83,7 +84,9 @@ pub fn get_month_data(
     })
 }
 
-/// 新しい予定イベントを追加し、挿入されたIDを返す
+/// 予定イベントを 'reservation' 種別で追加する。
+/// notify_on_launch=1 を必ず立てるため、追加直後に Mira を再起動すれば起動バナーに即出る。
+/// reminded=0 で開始し、check_due_reminders が発火時刻に達したら 1 に更新する。
 #[tauri::command]
 pub fn add_event(
     state: State<'_, DbState>,
@@ -104,7 +107,7 @@ pub fn add_event(
     Ok(mira.last_insert_rowid())
 }
 
-/// 指定IDの予定イベントを削除する
+/// 指定 ID の予定イベントを物理削除する (履歴は残さない)
 #[tauri::command]
 pub fn remove_event(state: State<'_, DbState>, id: i64) -> Result<(), String> {
     let mira = state.mira.lock().unwrap();

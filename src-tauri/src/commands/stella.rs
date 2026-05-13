@@ -3,6 +3,8 @@ use tauri::Manager;
 use winreg::enums::*;
 use winreg::RegKey;
 
+/// STELLARecord 側の apps テーブルスキーマ（fastparty / thirdparty 連携アプリ用）。
+/// 旧バージョンの STELLARecord にはこのテーブルが無いため、register 時に IF NOT EXISTS で作る。
 const APPS_SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS apps (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -15,13 +17,14 @@ CREATE TABLE IF NOT EXISTS apps (
 );
 ";
 
+/// STELLARecord DB のパスをレジストリから解決する (新レイアウト優先 → 旧 DbPath フォールバック)
 fn get_stellarecord_db_path() -> Option<String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let key = hkcu
         .open_subkey(r"Software\CosmoArtsStore\StellaRecord")
         .ok()?;
 
-    // New layout: InstallLocation + Data\db\stellarecord.db
+    // 新レイアウト: <InstallLocation>\Data\db\stellarecord.db
     if let Ok(install_dir) = key.get_value::<String, _>("InstallLocation") {
         let new_path = std::path::PathBuf::from(&install_dir)
             .join("Data")
@@ -32,10 +35,11 @@ fn get_stellarecord_db_path() -> Option<String> {
         }
     }
 
-    // Legacy fallback: DbPath key
+    // 旧バージョン互換 (Mira が直接書いた DbPath レジストリ値)
     key.get_value("DbPath").ok()
 }
 
+/// STELLARecord DB ファイルの実在を確認する (UI のオンボーディング判定で使う)
 #[tauri::command]
 pub fn check_stellarecord_available() -> bool {
     get_stellarecord_db_path()
@@ -43,6 +47,9 @@ pub fn check_stellarecord_available() -> bool {
         .unwrap_or(false)
 }
 
+/// Mira を STELLARecord の連携アプリ (fastparty) として登録する。
+/// 通常の DbState.stella 経由 (読込専用) ではなく書込可能で別途開き直す点に注意。
+/// 既に登録済みでも INSERT OR REPLACE で上書きするので重複エラーは出ない。
 #[tauri::command]
 pub fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String> {
     let db_path = get_stellarecord_db_path()
@@ -74,6 +81,7 @@ pub fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String>
     Ok("StellaRecord に登録しました".to_string())
 }
 
+/// STELLARecord の apps テーブルから Mira を登録解除する (アンインストール時の後片付け用)
 #[tauri::command]
 pub fn unregister_from_stellarecord() -> Result<String, String> {
     let db_path = get_stellarecord_db_path()
@@ -92,6 +100,7 @@ pub fn unregister_from_stellarecord() -> Result<String, String> {
     Ok("StellaRecord から登録解除しました".to_string())
 }
 
+/// アプリアイコン (128x128.png 優先、無ければ icon.png) をリソース配下から読み出して BLOB として返す
 fn load_app_icon(app: &tauri::AppHandle) -> Option<Vec<u8>> {
     let resource_dir = app.path().resource_dir().ok()?;
     let icon_path = resource_dir.join("icons").join("128x128.png");
