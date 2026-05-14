@@ -1,5 +1,15 @@
 use rusqlite::Connection;
 
+/// レーン描画の表示時間帯 (hour_start, hour_end) を直近 30 日の活動から自動推定する。
+///
+/// アルゴリズム:
+/// 1. 直近 30 日の visits.join_time から `%H` 整数 (0..23) を全て取り出す
+/// 2. ソートして 5 パーセンタイル (p5) と 95 パーセンタイル (p95) の時刻を求める
+/// 3. 開始は p5 の 1 時間前、終了は p95 の 2 時間後 (深夜跨ぎは +24 して 30 で頭打ち)
+///
+/// データが取れない/空の時は VRChat 利用者にありがちな夕方〜深夜帯 (12..26) を既定値とする。
+/// p95 が p5 を下回るのは「日付を跨いで遊んでいる」ケースで、+24 して翌日の時刻として扱う。
+/// hour_end は `26` のように 24 を越え得る (HomePage 側で displayHour = h - 24 で 0..23 に丸める)。
 pub fn detect_activity_range(conn: &Connection) -> (u8, u8) {
     let mut stmt = match conn.prepare(
         "SELECT CAST(strftime('%H', join_time) AS INTEGER) AS hour
@@ -24,10 +34,13 @@ pub fn detect_activity_range(conn: &Connection) -> (u8, u8) {
     hours.sort();
 
     let len = hours.len();
+    // 整数除算なので少サンプル時は p5=hours[0] になる。これは「最も早い時刻」と同義で許容範囲。
     let p5 = hours[len * 5 / 100];
     let p95 = hours[(len * 95 / 100).min(len - 1)];
 
+    // 開始は p5 を 1 時間早めて余白を取る (saturating_sub で 0 未満防止)
     let start = p5.saturating_sub(1);
+    // 終了は p95 を 2 時間後ろに伸ばす。p95 < p5 (深夜跨ぎ) なら +24 を加算してから 30 で頭打ち
     let end = if p95 >= p5 {
         (p95 + 2).min(30)
     } else {

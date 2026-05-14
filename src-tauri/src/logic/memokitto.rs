@@ -1,18 +1,20 @@
 use rusqlite::Connection;
 use serde::Serialize;
 
-/// メモ挿入用のチップ(ワールド名やユーザー名)
+/// めもきっとのチップ 1 枚 (フロントの kitto-sticker と対応)。category は "world" または "person"
 #[derive(Serialize)]
 pub struct MemokittoChip {
     pub label: String,
     pub category: String,
 }
 
-/// 指定日の訪問ワールドと同席ユーザーをチップ一覧として抽出する
+/// 指定日に登場したワールド・同席ユーザーをチップ一覧として返す。
+/// ワールドは最初に Join した時刻順、ユーザーは名前のアルファベット順で並べる
+/// (フロントで worlds / people の 2 セクションに分けて表示する)。
 pub fn extract(date: &str, stella: &Connection) -> Vec<MemokittoChip> {
     let mut chips = Vec::new();
 
-    // 訪問ワールドを時系列順に取得
+    // 訪問ワールドを時系列順 (MIN(join_time) で重複排除しつつ最初の入室時刻でソート)
     if let Ok(mut stmt) = stella.prepare(
         "SELECT world_name
          FROM visit_summary
@@ -28,7 +30,7 @@ pub fn extract(date: &str, stella: &Connection) -> Vec<MemokittoChip> {
         }
     }
 
-    // 同席ユーザーを名前順に取得
+    // 同席ユーザーを名前順 (人ごとに重複排除)。is_self=0 で自分自身を除外
     if let Ok(mut stmt) = stella.prepare(
         "SELECT fu.account_name
          FROM with_users wu

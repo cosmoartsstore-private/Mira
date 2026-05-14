@@ -44,7 +44,8 @@ pub struct PersonChip {
     pub co_visit_count: u32,
 }
 
-/// メモ内の自動検出マーカー範囲
+/// メモ内の自動検出マーカー範囲。start/end は **UTF-16 コードユニット位置** で返す
+/// (フロントの JS 文字列インデックスに合わせるため、marker.rs 内で byte → UTF-16 変換済み)
 #[derive(Serialize)]
 pub struct MarkerSpan {
     pub start: usize,
@@ -60,7 +61,8 @@ pub struct PhotoEntry {
     pub hour: f32,
 }
 
-/// ユーザーが手動で付けたマーカー
+/// ユーザーが手動で付けたマーカー。
+/// start/end はフロントの getSelectionOffsets が算出した UTF-16 コードユニット位置 (DB にそのまま格納)
 #[derive(Serialize, Clone)]
 pub struct ManualMarker {
     pub id: i64,
@@ -86,7 +88,8 @@ pub struct DayFocusData {
     pub has_update: bool,
 }
 
-/// 指定週の7日分レーンデータを取得する
+/// week_start (日曜日, YYYY-MM-DD) から 7 日分のレーンデータを返す。
+/// 表示時間帯 hour_start/hour_end は設定値があれば優先、無ければ過去 30 日の活動傾向から自動検出する。
 #[tauri::command]
 pub fn get_week_lane_data(
     state: State<'_, DbState>,
@@ -102,6 +105,7 @@ pub fn get_week_lane_data(
     let start_date =
         chrono::NaiveDate::parse_from_str(&week_start, "%Y-%m-%d").map_err(|e| e.to_string())?;
 
+    // 自動検出 (5%/95% パーセンタイル) を既定値とし、ユーザー設定があれば上書き
     let (default_start, default_end) = crate::logic::time_range::detect_activity_range(stella);
     let hour_start = get_setting_u8(&mira, "view_hour_start").unwrap_or(default_start);
     let hour_end = get_setting_u8(&mira, "view_hour_end").unwrap_or(default_end);
@@ -129,7 +133,8 @@ pub fn get_week_lane_data(
     })
 }
 
-/// 指定日のフォーカス画面データ（訪問・人・写真・メモ等）を取得する
+/// HomePage のフォーカスビュー用に、指定日のあらゆる情報をまとめて返す。
+/// 取得順は visits → 人 → 写真 → memo → マーカー (自動・手動) → メモきっと候補、と依存順。
 #[tauri::command]
 pub fn get_day_focus_data(state: State<'_, DbState>, date: String) -> Result<DayFocusData, String> {
     let stella_guard = state.stella.lock().unwrap();
@@ -208,13 +213,15 @@ pub fn get_day_focus_data(state: State<'_, DbState>, date: String) -> Result<Day
     })
 }
 
-/// 指定日のメモを保存（UPSERT）する
+/// 指定日のメモを upsert (date 主キーで INSERT or UPDATE) する。
+/// フロントの maxLength と二重に 1000 文字で切る（バイト数ではなく文字数ベースで切るため
+/// char_indices().nth() で 1001 文字目の byte 位置を取得し、その手前で slice する）。
 #[tauri::command]
 pub fn save_day_memo(state: State<'_, DbState>, date: String, memo: String) -> Result<(), String> {
     let mira = state.mira.lock().unwrap();
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-    // 1000文字以内に制限
+    // 1001 文字目があるならそのバイト位置で切る。なければ全文をそのまま使う。
     let max_len = memo.char_indices().nth(1000).map_or(memo.len(), |(i, _)| i);
     let trimmed = &memo[..max_len];
 
@@ -229,7 +236,8 @@ pub fn save_day_memo(state: State<'_, DbState>, date: String, memo: String) -> R
     Ok(())
 }
 
-/// 手動マーカーを追加し、挿入されたIDを返す
+/// 手動マーカーを追加し、AUTOINCREMENT で付番された ID を返す。
+/// start/end はフロントの UTF-16 オフセットをそのまま i64 化して格納（負値は来ない前提）
 #[tauri::command]
 pub fn add_manual_marker(
     state: State<'_, DbState>,
@@ -256,7 +264,7 @@ pub fn remove_manual_marker(state: State<'_, DbState>, id: i64) -> Result<(), St
     Ok(())
 }
 
-// 指定日の手動マーカー一覧をDBから読み込む
+// 指定日の手動マーカーを start_pos 昇順で読み込む。SQL/conversion 失敗時は空 Vec を返してフロントを壊さない
 fn load_manual_markers(mira: &rusqlite::Connection, date: &str) -> Vec<ManualMarker> {
     let Ok(mut stmt) = mira.prepare(
         "SELECT id, start_pos, end_pos, color FROM mira_manual_markers WHERE date = ?1 ORDER BY start_pos",
@@ -276,7 +284,8 @@ fn load_manual_markers(mira: &rusqlite::Connection, date: &str) -> Vec<ManualMar
     .unwrap_or_default()
 }
 
-// 指定日のワールド訪問一覧をSTELLAから取得する
+// 指定日 (ローカル日付) の訪問サマリを STELLA から取得し、世界色を Mira 側で付与する。
+// leave_time が NULL のレコードは duration_sec から終了時刻を推定する（VRC 起動中に終わった訪問）。
 fn query_visits_for_date(
     stella: &rusqlite::Connection,
     mira: &rusqlite::Connection,
@@ -326,7 +335,7 @@ fn query_visits_for_date(
     Ok(visits)
 }
 
-// 指定日の同席ユーザー一覧をSTELLAから取得する
+// 指定日に同席した自分以外のユーザーを共訪問回数の多い順で返す。お気に入りフラグは Mira DB を別途参照。
 fn query_people_for_date(
     stella: &rusqlite::Connection,
     mira: &rusqlite::Connection,
@@ -374,7 +383,7 @@ fn query_people_for_date(
     Ok(people)
 }
 
-// 指定日のスクリーンショット一覧をSTELLAから取得する
+// 指定日に撮影されたスクリーンショットを時系列で返す。hour は訪問ブロックとの時間突合に使う
 fn query_photos_for_date(
     stella: &rusqlite::Connection,
     date: &str,
@@ -401,7 +410,8 @@ fn query_photos_for_date(
     Ok(photos)
 }
 
-// 各訪問ブロックに同席プレイヤー名を紐付ける
+// 当日の Join 履歴を時刻で各 VisitBlock に振り分け、`players` を埋める。
+// Join 時刻が訪問の [start_hour, end_hour) に入るかどうかで判定する。
 fn attach_players_to_visits(
     stella: &rusqlite::Connection,
     date: &str,
@@ -439,7 +449,8 @@ fn attach_players_to_visits(
     }
 }
 
-// ワールドIDに対応する色を取得し、なければ生成して保存する
+// ワールド色を Mira DB から引き、未登録なら world_name のハッシュからパレット色を生成して保存する。
+// 一度割り当てた色を変えないため INSERT OR IGNORE で初回のみ書き込む (ユーザー手動変更を温存)。
 fn get_or_generate_world_color(
     mira: &rusqlite::Connection,
     world_id: &str,
@@ -462,7 +473,8 @@ fn get_or_generate_world_color(
     color
 }
 
-// 設定テーブルからu8値を取得する（0は無効値として扱う）
+// mira_settings から u8 値を取り出す。空文字や 0 は「未設定」と同義とみなして None を返す
+// (デフォルト値で開始 → ユーザーが明示的に正の値を入れた時のみ採用、の挙動を実現するため)
 fn get_setting_u8(conn: &rusqlite::Connection, key: &str) -> Option<u8> {
     conn.query_row(
         "SELECT value FROM mira_settings WHERE key = ?1",
@@ -474,7 +486,8 @@ fn get_setting_u8(conn: &rusqlite::Connection, key: &str) -> Option<u8> {
     .filter(|v: &u8| *v > 0)
 }
 
-// 日時文字列から時刻を小数時間（例: 14:30 -> 14.5）に変換する
+// "YYYY-MM-DD HH:MM:SS" / "YYYY-MM-DDTHH:MM:SS" の時刻部を小数 hour に変換 (14:30 -> 14.5)。
+// 区切り (' ' or 'T') 未対応や数値パース失敗時は 0.0 にフォールバック。
 fn parse_hour_fraction(datetime_str: &str) -> f32 {
     let time_part = datetime_str
         .split([' ', 'T'])
@@ -486,7 +499,7 @@ fn parse_hour_fraction(datetime_str: &str) -> f32 {
     h + m / 60.0
 }
 
-// 曜日を英語略称に変換する
+// chrono::Weekday を英語 3 文字略称 (Sun..Sat) に変換する。フロントの day-head 表示用
 fn format_weekday(wd: chrono::Weekday) -> String {
     match wd {
         chrono::Weekday::Mon => "Mon",
@@ -500,7 +513,7 @@ fn format_weekday(wd: chrono::Weekday) -> String {
     .to_string()
 }
 
-// 曜日を日本語表記に変換する
+// chrono::Weekday を日本語表記 (月曜日..日曜日) に変換する。memo パネルの日付見出し用
 fn format_weekday_jp(wd: chrono::Weekday) -> String {
     match wd {
         chrono::Weekday::Mon => "月曜日",

@@ -21,13 +21,18 @@ const SEASON_SVGS: Record<Season, string[]> = {
   ],
 };
 
+// 月から舞い散らせる花弁/葉/雪の種類を決める。
+// 境界 (3-5, 6-8, 9-11, それ以外) は seasonLabel() と必ず一致させること
+// (5月のラベル「春」に対し sakura を出すなど食い違うと違和感が出る)。
 function getSeason(month: number): Season {
-  if (month >= 3 && month <= 4) return "sakura";
-  if (month >= 5 && month <= 8) return "leaf";
+  if (month >= 3 && month <= 5) return "sakura";
+  if (month >= 6 && month <= 8) return "leaf";
   if (month >= 9 && month <= 11) return "momiji";
   return "snow";
 }
 
+// 季節に応じた花弁/葉/雪が舞う四半期サマリー演出を表示する。
+// overrideMonth は DebugPage 等から任意季節をテスト再生するためのもの。
 export function playSummaryAnimation(overrideMonth?: number): void {
   const month = overrideMonth ?? new Date().getMonth() + 1;
   const season = getSeason(month);
@@ -93,6 +98,8 @@ export function playSummaryAnimation(overrideMonth?: number): void {
   });
 }
 
+// 1枚の花弁/葉/雪を生成し、CSS 変数でランダムな軌道/速度を与える。
+// snow と他季節で軌道が全く違う (snow は縦落下+ドリフト、その他は loop 軌道) ため分岐。
 function spawnPetal(canvas: HTMLElement, season: Season): void {
   const svgs = SEASON_SVGS[season];
   const svgStr = svgs[Math.floor(Math.random() * svgs.length)];
@@ -142,6 +149,7 @@ function spawnPetal(canvas: HTMLElement, season: Season): void {
   petal.addEventListener("animationend", () => petal.remove());
 }
 
+// 月から表示用ラベル "YYYY 春/夏/秋/冬" を返す。境界は getSeason() と必ず揃える。
 function seasonLabel(month: number): string {
   const year = new Date().getFullYear();
   if (month >= 3 && month <= 5) return `${year} 春`;

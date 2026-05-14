@@ -10,6 +10,8 @@ import { showStartupReminder } from "./components/StartupReminder";
 import { startReminderService } from "./services/reminder";
 import type { TabId } from "./state/types";
 
+// アプリの起動シーケンス: ナビ・ページコンテナを構築 → 起動情報・設定取得 → 初期ページ mount。
+// バックエンドが落ちている (STELLA 未接続) ケースは try/catch で握りつぶし、空状態画面で動かす。
 export async function initApp(): Promise<void> {
   const app = document.getElementById("app")!;
 
@@ -39,7 +41,7 @@ export async function initApp(): Promise<void> {
 
     registerToStellarecord().catch(() => {});
   } catch {
-    // STELLARecord not available
+    // STELLARecord 未接続でも UI は起動する（HomePage が空状態を出す）
   }
 
   let currentPageSubs: Subscriptions | null = null;
@@ -51,11 +53,16 @@ export async function initApp(): Promise<void> {
     debug: (subs) => DebugPage(subs),
   };
 
+  // タブ切替時に旧ページの購読を解除し、新ページを生成・差し替える。
+  // focusedDate は home 専用のため、home 以外に行く時だけ消す（CalendarPage が事前にセットして
+  // home に飛ばすフローを壊さないため）。
   function mountPage(tab: TabId): void {
     if (currentPageSubs) {
       currentPageSubs.dispose();
     }
-    focusedDate.set(null);
+    if (tab !== "home") {
+      focusedDate.set(null);
+    }
     currentPageSubs = new Subscriptions();
     pageContainer.innerHTML = "";
     pageContainer.appendChild(pages[tab](currentPageSubs));
@@ -64,6 +71,7 @@ export async function initApp(): Promise<void> {
   activeTab.subscribe(async (newTab, oldTab) => {
     if (oldTab === newTab) return;
     if (settings.get().transition_enabled) {
+      // カバーで覆ってから mount するため、ページ切替のチラつきが見えない
       await playTransition(newTab, () => mountPage(newTab));
     } else {
       mountPage(newTab);
@@ -73,6 +81,7 @@ export async function initApp(): Promise<void> {
   mountPage("home");
 }
 
+// タブ遷移時のスライドカバーを overlay 層に1枚だけ仕込む（playTransition が使い回す）
 function createTransitionCover(): void {
   const overlay = document.getElementById("overlay-layer")!;
   const cover = document.createElement("div");

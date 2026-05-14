@@ -20,6 +20,7 @@ const SEASON_BG: Record<Season, string> = {
   winter: "radial-gradient(ellipse at top, rgba(212, 154, 74, 0.15), transparent 50%), radial-gradient(ellipse at bottom, rgba(139, 107, 155, 0.1), transparent 50%), var(--paper)",
 };
 
+// 現在月から季節を分類する（3-5=春, 6-8=夏, 9-11=秋, それ以外=冬）
 function getCurrentSeason(): Season {
   const month = new Date().getMonth() + 1;
   if (month >= 3 && month <= 5) return "spring";
@@ -28,10 +29,13 @@ function getCurrentSeason(): Season {
   return "winter";
 }
 
+// 演出のフェーズ区切り用の Promise sleep
 function wait(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// 季節サマリーの封筒開封演出を1回再生する。引数省略時は現在月から季節を推定し、
+// stats も "—" で初期化する（DebugPage 等のテスト再生にも使える）。
 export function playSnapshot(data?: SnapshotData): void {
   const season = data?.season ?? getCurrentSeason();
   const greeting = data?.greeting ?? "この四半期のあなたの記録が、ここに集まりました。";
@@ -116,6 +120,8 @@ export function playSnapshot(data?: SnapshotData): void {
   runAnimation(stage, leaf, notify, envWrap, letter, closeHint);
 }
 
+// フェーズ駆動の演出本体。各フェーズ間の await wait(ms) で CSS class を1つずつ追加し、
+// 対応する keyframe アニメーションを連鎖発火させる（タイミングは演出デザイン側のマジック数値）。
 async function runAnimation(
   stage: HTMLElement,
   leaf: HTMLElement,
@@ -164,16 +170,19 @@ async function runAnimation(
   closeHint.classList.add("show");
 
   // Phase 9: Close on click
+  let closed = false;
+  const escHandler = (e: KeyboardEvent): void => {
+    if (e.key === "Escape") close();
+  };
   const close = (): void => {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener("keydown", escHandler);
+    stage.removeEventListener("click", close);
     stage.style.opacity = "0";
     stage.style.transition = "opacity 0.5s";
     setTimeout(() => stage.remove(), 500);
   };
   stage.addEventListener("click", close);
-  document.addEventListener("keydown", function handler(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      close();
-      document.removeEventListener("keydown", handler);
-    }
-  });
+  document.addEventListener("keydown", escHandler);
 }

@@ -3,7 +3,9 @@ import { currentMonth, activeTab, currentWeekStart, focusedDate, Subscriptions }
 import { getJapaneseHolidays } from "../../utils/holidays";
 import type { CalendarEvent } from "../../state/types";
 
-// カレンダーページ全体を構築して返す
+// 月別カレンダー。月内のアクティブ日 (訪問あり) と祝日・予定を表示する。
+// グリッドの曜日順は **月曜始まり** (Mon..Sun)。一方データ層 (HomePage) は **日曜始まり** 週で動く。
+// アクティブ日クリック時は d - getDay() で日曜を求めて currentWeekStart に渡し、HomePage の世界観に合わせる。
 export function CalendarPage(subs: Subscriptions): HTMLElement {
   const container = document.createElement("div");
   container.className = "calendar-page";
@@ -44,14 +46,15 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
   container.appendChild(grid);
   container.appendChild(legend);
 
-  // 月名ラベルを現在の年月で更新する
+  // 上部の年・月ラベル ("2026 Apr" のような表示) を currentMonth の値で更新する
   function updateLabel(): void {
     const { year, month } = currentMonth.get();
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     monthLabel.innerHTML = `<span class="year">${year}</span>${monthNames[month - 1]}`;
   }
 
-  // 月のデータを取得してグリッドを描画する
+  // 現在月のアクティブ日とイベントをバックエンドから取得し renderGrid に流す。
+  // 取得失敗時も空データでグリッドだけは描画して UI を壊さない。
   async function loadMonth(): Promise<void> {
     const { year, month } = currentMonth.get();
     updateLabel();
@@ -63,7 +66,8 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
     }
   }
 
-  // カレンダーグリッドに日付セルを描画する
+  // 曜日ヘッダ + 月初までの空セル + 日付セルを順に grid に流し込む。
+  // 月曜始まりのため、1日の getDay()-1 がオフセット。日曜(0)は -1 を 6 に補正して最右に置く。
   function renderGrid(year: number, month: number, activeDays: number[], events: CalendarEvent[]): void {
     grid.innerHTML = "";
     const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -76,6 +80,7 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
       grid.appendChild(head);
     }
 
+    // 月曜=0 列, 火曜=1 列, ..., 日曜=6 列に揃えるためのオフセット計算
     let offset = new Date(year, month - 1, 1).getDay() - 1;
     if (offset < 0) offset = 6;
 
@@ -93,7 +98,9 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
 
     const eventsByDay = new Map<number, CalendarEvent[]>();
     for (const evt of events) {
-      const day = parseInt(evt.scheduled_at.split(/[-T ]/)[2], 10);
+      const dayPart = evt.scheduled_at.split(/[-T ]/)[2];
+      const day = parseInt(dayPart ?? "", 10);
+      if (Number.isNaN(day)) continue;
       if (!eventsByDay.has(day)) eventsByDay.set(day, []);
       eventsByDay.get(day)!.push(evt);
     }
@@ -147,6 +154,10 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
         cell.appendChild(tag);
       }
 
+      // セルクリックの分岐:
+      //  - アクティブ日 (訪問あり) かつ予定なし → HomePage のフォーカス表示へ飛ぶ
+      //  - それ以外 (空き日 / 既存予定あり) → 予定追加フォームを開く
+      // HomePage は日曜始まり週で動くため、ここで d - getDay() を引いて日曜の日付を求める。
       cell.addEventListener("click", () => {
         const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
         if (isActive && dayEvents.length === 0) {
@@ -167,7 +178,8 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
     }
   }
 
-  // 予定追加フォームのポップアップを表示する
+  // 予定追加用ポップアップを anchor (=セル) の上に配置する。Enter で保存、Esc でキャンセル。
+  // setTimeout(0) で外側クリック検知を1tick遅らせ、表示の起因となったクリックで即閉じるのを防ぐ。
   function showAddEventForm(date: string, anchor: HTMLElement): void {
     closePopups();
 
@@ -236,7 +248,7 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
     }, 0);
   }
 
-  // 既存イベントの詳細・削除ポップアップを表示する
+  // 既存予定タグのクリックで詳細・削除ボタン付きポップアップを開く
   function showEventPopup(evt: CalendarEvent, anchor: HTMLElement): void {
     closePopups();
 
@@ -275,7 +287,7 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
     }, 0);
   }
 
-  // 開いているポップアップをすべて閉じる
+  // 開いているポップアップを全て破棄する（新ポップアップを出す前に呼ぶ）
   function closePopups(): void {
     document.querySelectorAll(".cal-popup").forEach((p) => p.remove());
   }
@@ -286,7 +298,7 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
   return container;
 }
 
-// 表示月を前後にずらす
+// 月を offset ぶんずらして currentMonth に反映する（12/1 月境界の年送りも処理）
 function shiftMonth(offset: number): void {
   const { year, month } = currentMonth.get();
   let newMonth = month + offset;
@@ -301,7 +313,7 @@ function shiftMonth(offset: number): void {
   currentMonth.set({ year: newYear, month: newMonth });
 }
 
-// HTML特殊文字をエスケープする
+// innerHTML に流す前の HTML 特殊文字エスケープ（タイトル表示用）
 function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

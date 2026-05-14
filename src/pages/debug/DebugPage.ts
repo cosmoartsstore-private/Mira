@@ -3,7 +3,8 @@ import { playSummaryAnimation } from "../../animations/summary";
 import { playSnapshot } from "../../animations/snapshot";
 import { getWeekLaneData, getDayFocusData, getMonthData, getStartupInfo, getSettings } from "../../api/commands";
 
-// 開発用デバッグページを生成する
+// 開発専用ページ。Navbar から DEV ビルド時のみ到達可能。
+// ストア状態の可視化・各 Tauri コマンドの単発実行・演出の再生確認をここに集約している。
 export function DebugPage(subs: Subscriptions): HTMLElement {
   const container = document.createElement("div");
   container.className = "debug-page";
@@ -20,7 +21,7 @@ export function DebugPage(subs: Subscriptions): HTMLElement {
   stateSection.appendChild(stateOutput);
   container.appendChild(stateSection);
 
-  // ストアの現在状態をJSON出力に反映する
+  // Store State セクションに現在のストア値を JSON で書き出す（購読のたびに再計算）
   function refreshState(): void {
     stateOutput.textContent = JSON.stringify({
       activeTab: activeTab.get(),
@@ -171,7 +172,7 @@ export function DebugPage(subs: Subscriptions): HTMLElement {
   return container;
 }
 
-// 見出し付きのデバッグセクションを生成する
+// デバッグセクションの外枠 (h3 タイトル付き) を作って返す
 function createSection(title: string): HTMLElement {
   const section = document.createElement("div");
   section.className = "debug-section";
@@ -181,7 +182,7 @@ function createSection(title: string): HTMLElement {
   return section;
 }
 
-// クリックハンドラ付きのデバッグボタンを生成する
+// クリックでハンドラを呼ぶデバッグ用ボタン要素を作って返す
 function createBtn(label: string, onClick: () => void): HTMLElement {
   const btn = document.createElement("button");
   btn.className = "debug-btn";

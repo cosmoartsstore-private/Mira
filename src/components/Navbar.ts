@@ -1,6 +1,9 @@
 import { activeTab } from "../state/store";
 import type { TabId } from "../state/types";
 
+// 上部ナビゲーションバーを構築する。
+// activeTab ストアを購読してアクティブな見た目を切り替え、クリックで activeTab.set する。
+// debug タブは DEV ビルドでのみ表示。
 export function Navbar(): HTMLElement {
   const nav = document.createElement("nav");
   nav.className = "navbar";
@@ -31,6 +34,7 @@ export function Navbar(): HTMLElement {
   nav.appendChild(logo);
   nav.appendChild(tabs);
 
+  // ナビバーはアプリ生存中ずっと存在するため unsubscribe を持たない（アンマウントされない）
   activeTab.subscribe((tab) => {
     tabs.querySelectorAll(".navbar-tab").forEach((el) => {
       (el as HTMLElement).classList.toggle("active", el.getAttribute("data-tab") === tab);

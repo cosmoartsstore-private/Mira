@@ -2,7 +2,8 @@ import { settings, Subscriptions } from "../../state/store";
 import { setSetting, getSettings } from "../../api/commands";
 import { playVoiceFile } from "../../services/reminder";
 
-// 設定画面のページコンポーネントを生成する
+// 設定画面。フォント・通知音・VOICEVOX 話者を変更すると DB + ストア双方を即時更新する。
+// _subs は他ページとシグネチャを揃えるための引数だが、この画面は外部ストア購読を持たないため未使用。
 export function SettingsPage(_subs: Subscriptions): HTMLElement {
   const container = document.createElement("div");
   container.className = "settings-page";
@@ -171,22 +172,7 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
     } catch { /* */ }
   });
 
-  container.querySelectorAll("[data-toggle-group]").forEach((group) => {
-    const buttons = group.querySelectorAll(".toggle-btn");
-    buttons.forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const key = group.getAttribute("data-toggle-group")!;
-        const value = (btn as HTMLElement).dataset.value!;
-        buttons.forEach((b) => b.classList.remove("on"));
-        btn.classList.add("on");
-        try {
-          await setSetting(key, value);
-          await refreshSettings();
-        } catch { /* */ }
-      });
-    });
-  });
-
+  // ON/OFF 切替ボタン群: data-bool-toggle="<key>" を見て押された側を on にし、setSetting で永続化
   container.querySelectorAll("[data-bool-toggle]").forEach((group) => {
     const buttons = group.querySelectorAll(".toggle-btn");
     buttons.forEach((btn) => {
@@ -206,7 +192,7 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
   return container;
 }
 
-// 見出し付きのセクション要素を生成する
+// 設定セクションの外枠 (h3 タイトル付き) を作って返す
 function createSection(title: string): HTMLElement {
   const section = document.createElement("div");
   section.className = "setting-section";
@@ -216,7 +202,7 @@ function createSection(title: string): HTMLElement {
   return section;
 }
 
-// セレクトボックス付きの設定行を生成する
+// ラベル + <select> の 1 行を組み立てる。current と一致するオプションを selected にする
 function createSelectRow(label: string, id: string, options: { value: string; label: string }[], current: string): HTMLElement {
   const row = document.createElement("div");
   row.className = "setting-row";
@@ -234,27 +220,7 @@ function createSelectRow(label: string, id: string, options: { value: string; la
   return row;
 }
 
-// 文字列トグル付きの設定行を生成する
-function createToggleRow(label: string, options: { value: string; label: string }[], current: string): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "setting-row";
-  row.innerHTML = `<span class="label">${label}</span>`;
-  const toggleRow = document.createElement("div");
-  toggleRow.className = "toggle-row";
-  toggleRow.dataset.toggleGroup = "font_scope";
-  for (const opt of options) {
-    const btn = document.createElement("button");
-    btn.className = "toggle-btn";
-    btn.dataset.value = opt.value;
-    btn.textContent = opt.label;
-    if (opt.value === current) btn.classList.add("on");
-    toggleRow.appendChild(btn);
-  }
-  row.appendChild(toggleRow);
-  return row;
-}
-
-// ON/OFFブール切替付きの設定行を生成する
+// ラベル + ON/OFF トグル行を組み立てる。クリック処理は data-bool-toggle 経由でまとめてフックする
 function createBoolToggleRowKeyed(label: string, key: string, current: boolean): HTMLElement {
   const row = document.createElement("div");
   row.className = "setting-row";
@@ -278,14 +244,14 @@ function createBoolToggleRowKeyed(label: string, key: string, current: boolean):
   return row;
 }
 
-// バックエンドから設定を再取得してストアとフォントを更新する
+// 設定更新後にバックエンドから最新値を取り直し、ストアに反映してフォント変更も即時適用する
 async function refreshSettings(): Promise<void> {
   const s = await getSettings();
   settings.set(s);
   applyMemoFont(s.font_family);
 }
 
-// メモ入力エリアのフォントをCSS変数で適用する
+// :root の --memo-font CSS 変数を更新する。メモ・めもきっとなど CSS 側で var(--memo-font) を参照
 function applyMemoFont(family: string): void {
   document.documentElement.style.setProperty("--memo-font", `"${family}", sans-serif`);
 }

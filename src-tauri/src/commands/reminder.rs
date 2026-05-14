@@ -13,7 +13,9 @@ pub struct ReminderEvent {
     pub minutes_until: i64,
 }
 
-/// 通知時刻に達した未通知リマインダーを取得し、通知済みに更新する
+/// 「通知時刻 (scheduled_at - remind_minutes_before 分) ～ 開始時刻」の窓に入っていて未通知のものを返す。
+/// 取得と同時に reminded=1 へ更新するため、フロント側で同じイベントが二重発火することはない。
+/// (フロントが受信に失敗した場合は通知ロストになるトレードオフを受け入れている)
 #[tauri::command]
 pub fn check_due_reminders(state: State<'_, DbState>) -> Result<Vec<ReminderEvent>, String> {
     let mira = state.mira.lock().unwrap();
@@ -45,7 +47,7 @@ pub fn check_due_reminders(state: State<'_, DbState>) -> Result<Vec<ReminderEven
         .filter_map(|r| r.ok())
         .collect();
 
-    // 取得したリマインダーを通知済みに更新
+    // 取得結果を即座に通知済みに更新する (個別 UPDATE 失敗は黙殺。次回ポーリングで再試行される)
     for r in &reminders {
         let _ = mira.execute(
             "UPDATE mira_scheduled_events SET reminded = 1 WHERE id = ?1",
