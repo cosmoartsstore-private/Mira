@@ -1,5 +1,5 @@
-import { settings, Subscriptions } from "../../state/store";
-import { setSetting, getSettings } from "../../api/commands";
+import { settings, stellaConnected, Subscriptions } from "../../state/store";
+import { setSetting, setViewHourRange, getSettings, unregisterFromStellarecord } from "../../api/commands";
 import { playVoiceFile } from "../../services/reminder";
 
 // 設定画面。フォント・通知音・VOICEVOX 話者を変更すると DB + ストア双方を即時更新する。
@@ -23,7 +23,30 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
     { value: "Kiwi Maru", label: "Kiwi Maru" },
     { value: "Hachi Maru Pop", label: "Hachi Maru Pop" },
   ], s.font_family));
+  // 書体適用範囲 (font_scope)
+  fontSection.appendChild(createKeyedToggleRow("書体適用範囲", "font_scope", [
+    { value: "content_only", label: "メモのみ" },
+    { value: "all", label: "アプリ全体" },
+  ], s.font_scope || "content_only"));
   container.appendChild(fontSection);
+
+  // Display section
+  // detect_activity_range が 24 を超え 30 まで返し得るため UI 上限も 30 に拡張する
+  const displaySection = createSection("表示");
+  displaySection.appendChild(createBoolToggleRowKeyed("ページ遷移アニメーション", "transition_enabled", s.transition_enabled));
+  displaySection.appendChild(createNumberRow("タイムライン開始時 (0-29)", "view-hour-start", s.view_hour_start, 0, 29));
+  displaySection.appendChild(createNumberRow("タイムライン終了時 (1-30)", "view-hour-end", s.view_hour_end, 1, 30));
+  container.appendChild(displaySection);
+
+  // Memo section
+  const memoSection = createSection("メモ");
+  memoSection.appendChild(createNumberRow("メモ最大文字数", "memo-max-length", s.memo_max_length, 100, 10000));
+  container.appendChild(memoSection);
+
+  // Review section
+  const reviewSection = createSection("レビュー");
+  reviewSection.appendChild(createBoolToggleRowKeyed("スナップショット表示", "snapshot_enabled", s.snapshot_enabled));
+  container.appendChild(reviewSection);
 
   // Reminder section
   const reminderSection = createSection("リマインダー");
@@ -77,6 +100,34 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
 
   container.appendChild(reminderSection);
 
+  // STELLARecord 連携
+  const integrationSection = createSection("STELLARecord 連携");
+  const integrationRow = document.createElement("div");
+  integrationRow.className = "setting-row";
+  integrationRow.innerHTML = `<span class="label">連携状態</span>`;
+  const integrationStatus = document.createElement("span");
+  integrationStatus.className = "integration-status";
+  integrationStatus.textContent = stellaConnected.get() ? "接続済み" : "未接続";
+  const unregisterBtn = document.createElement("button");
+  unregisterBtn.className = "toggle-btn";
+  unregisterBtn.textContent = "連携を解除";
+  unregisterBtn.addEventListener("click", async () => {
+    const ok = await confirmDialog("STELLARecord との連携を解除しますか？");
+    if (!ok) return;
+    try {
+      await unregisterFromStellarecord();
+      stellaConnected.set(false);
+      integrationStatus.textContent = "未接続";
+    } catch { /* */ }
+  });
+  const integrationWrap = document.createElement("div");
+  integrationWrap.className = "integration-wrap";
+  integrationWrap.appendChild(integrationStatus);
+  integrationWrap.appendChild(unregisterBtn);
+  integrationRow.appendChild(integrationWrap);
+  integrationSection.appendChild(integrationRow);
+  container.appendChild(integrationSection);
+
   // Creator + Credits side by side
   const bottomRow = document.createElement("div");
   bottomRow.className = "settings-bottom-row";
@@ -113,7 +164,7 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
     <div class="credits-category">サウンド</div>
     <div class="credits-row">
       <span class="credits-label">フレーズ032 (通知音)</span>
-      <span class="credits-author">くらげ工匠 様</span>
+      <span class="credits-author">くらげ工匿 様</span>
       <span class="credits-url">- http://www.kurage-kosho.info/</span>
     </div>
     <div class="credits-category">音声合成</div>
@@ -172,7 +223,68 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
     } catch { /* */ }
   });
 
-  // ON/OFF 切替ボタン群: data-bool-toggle="<key>" を見て押された側を on にし、setSetting で永続化
+  // number input rows
+  container.querySelectorAll<HTMLInputElement>("[data-num-key]").forEach((input) => {
+    input.addEventListener("change", async () => {
+      const key = input.dataset.numKey!;
+      let v = Number(input.value);
+      const min = Number(input.min || "0");
+      const max = Number(input.max || "99999");
+      if (isNaN(v)) return;
+      if (v < min) v = min;
+      if (v > max) v = max;
+
+      // view_hour_start / view_hour_end は原子コマンドで両値を一度に更新する
+      // (set_setting を 1 つずつ呼ぶと中間状態で start>=end になり拒否されるため)
+      if (key === "view_hour_start" || key === "view_hour_end") {
+        const cur = settings.get();
+        const start = key === "view_hour_start" ? v : cur.view_hour_start;
+        const end = key === "view_hour_end" ? v : cur.view_hour_end;
+        if (start >= end) {
+          input.value = String(key === "view_hour_start" ? cur.view_hour_start : cur.view_hour_end);
+          return;
+        }
+        input.value = String(v);
+        try {
+          await setViewHourRange(start, end);
+          await refreshSettings();
+        } catch {
+          const cur2 = settings.get();
+          if (key === "view_hour_start") input.value = String(cur2.view_hour_start);
+          else input.value = String(cur2.view_hour_end);
+        }
+        return;
+      }
+
+      input.value = String(v);
+      try {
+        await setSetting(key, String(v));
+        await refreshSettings();
+      } catch {
+        // バックエンドが拒否した場合も直前値に戻す
+        const cur = settings.get();
+        if (key === "memo_max_length") input.value = String(cur.memo_max_length);
+      }
+    });
+  });
+
+  container.querySelectorAll("[data-toggle-group]").forEach((group) => {
+    const buttons = group.querySelectorAll(".toggle-btn");
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const key = group.getAttribute("data-toggle-group")!;
+        const value = (btn as HTMLElement).dataset.value!;
+        buttons.forEach((b) => b.classList.remove("on"));
+        btn.classList.add("on");
+        try {
+          await setSetting(key, value);
+          await refreshSettings();
+        } catch { /* */ }
+      });
+    });
+  });
+
+
   container.querySelectorAll("[data-bool-toggle]").forEach((group) => {
     const buttons = group.querySelectorAll(".toggle-btn");
     buttons.forEach((btn) => {
@@ -220,7 +332,27 @@ function createSelectRow(label: string, id: string, options: { value: string; la
   return row;
 }
 
-// ラベル + ON/OFF トグル行を組み立てる。クリック処理は data-bool-toggle 経由でまとめてフックする
+// 任意キーでの文字列トグル付きの設定行を生成する
+function createKeyedToggleRow(label: string, key: string, options: { value: string; label: string }[], current: string): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "setting-row";
+  row.innerHTML = `<span class="label">${label}</span>`;
+  const toggleRow = document.createElement("div");
+  toggleRow.className = "toggle-row";
+  toggleRow.dataset.toggleGroup = key;
+  for (const opt of options) {
+    const btn = document.createElement("button");
+    btn.className = "toggle-btn";
+    btn.dataset.value = opt.value;
+    btn.textContent = opt.label;
+    if (opt.value === current) btn.classList.add("on");
+    toggleRow.appendChild(btn);
+  }
+  row.appendChild(toggleRow);
+  return row;
+}
+
+// ON/OFFブール切替付きの設定行を生成する
 function createBoolToggleRowKeyed(label: string, key: string, current: boolean): HTMLElement {
   const row = document.createElement("div");
   row.className = "setting-row";
@@ -244,14 +376,106 @@ function createBoolToggleRowKeyed(label: string, key: string, current: boolean):
   return row;
 }
 
-// 設定更新後にバックエンドから最新値を取り直し、ストアに反映してフォント変更も即時適用する
+// 数値入力付きの設定行を生成する
+function createNumberRow(label: string, id: string, current: number, min: number, max: number): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "setting-row";
+  row.innerHTML = `<span class="label">${label}</span>`;
+  const input = document.createElement("input");
+  input.type = "number";
+  input.id = id;
+  input.min = String(min);
+  input.max = String(max);
+  input.value = String(current);
+  // id と setting key はケバブとスネークをやりとりするためマッピング
+  const keyMap: Record<string, string> = {
+    "memo-max-length": "memo_max_length",
+    "view-hour-start": "view_hour_start",
+    "view-hour-end": "view_hour_end",
+  };
+  input.dataset.numKey = keyMap[id] || id;
+  row.appendChild(input);
+  return row;
+}
+
+// バックエンドから設定を再取得してストアとフォントを更新する
 async function refreshSettings(): Promise<void> {
   const s = await getSettings();
   settings.set(s);
   applyMemoFont(s.font_family);
+  applyFontScope(s.font_scope || "content_only");
+  applyTransitionEnabled(s.transition_enabled);
 }
 
 // :root の --memo-font CSS 変数を更新する。メモ・めもきっとなど CSS 側で var(--memo-font) を参照
 function applyMemoFont(family: string): void {
   document.documentElement.style.setProperty("--memo-font", `"${family}", sans-serif`);
+}
+
+// フォント適用範囲 (メモのみ / アプリ全体) をクラスで切替える
+function applyFontScope(scope: string): void {
+  document.documentElement.classList.toggle("font-scope-all", scope === "all");
+  document.documentElement.classList.toggle("font-scope-content", scope === "content_only");
+}
+
+// ページ遷移アニメーションのクラスを body に反映する
+function applyTransitionEnabled(enabled: boolean): void {
+  document.body.classList.toggle("transitions-disabled", !enabled);
+}
+
+// WebView 環境差を避けるための HTML 確認モーダル (R2-M-5)
+//
+// window.confirm はビルド先 WebView2 でブロッキング・無視されるケースがあるため
+// 自前モーダルで OK/キャンセルを Promise<boolean> で返す。
+function confirmDialog(message: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "mira-confirm-overlay";
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;";
+
+    const card = document.createElement("div");
+    card.className = "mira-confirm-card";
+    card.style.cssText = "background:#fff;color:#222;padding:20px 24px;border-radius:8px;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.25);font-family:inherit;";
+
+    const msg = document.createElement("div");
+    msg.className = "mira-confirm-msg";
+    msg.style.cssText = "margin-bottom:16px;line-height:1.5;";
+    msg.textContent = message;
+
+    const actions = document.createElement("div");
+    actions.style.cssText = "display:flex;gap:8px;justify-content:flex-end;";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "toggle-btn";
+    cancelBtn.textContent = "キャンセル";
+
+    const okBtn = document.createElement("button");
+    okBtn.className = "toggle-btn on";
+    okBtn.textContent = "OK";
+
+    const cleanup = (ans: boolean) => {
+      overlay.remove();
+      document.removeEventListener("keydown", onKey);
+      resolve(ans);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cleanup(false);
+      if (e.key === "Enter") cleanup(true);
+    };
+
+    cancelBtn.addEventListener("click", () => cleanup(false));
+    okBtn.addEventListener("click", () => cleanup(true));
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) cleanup(false);
+    });
+    document.addEventListener("keydown", onKey);
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(okBtn);
+    card.appendChild(msg);
+    card.appendChild(actions);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    okBtn.focus();
+  });
 }

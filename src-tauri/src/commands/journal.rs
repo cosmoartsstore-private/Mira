@@ -1,9 +1,16 @@
-use chrono::Datelike;
+use chrono::{Datelike, Timelike};
 use serde::Serialize;
 use tauri::State;
 
 use crate::db::DbState;
 use crate::logic::{marker, memokitto, world_color};
+
+/// 同席プレイヤー (同名別 vrchat_id を区別するため user_id を保持)
+#[derive(Serialize, Clone)]
+pub struct VisitPlayer {
+    pub user_id: String,
+    pub name: String,
+}
 
 /// ワールド訪問ブロック（タイムライン表示用）
 #[derive(Serialize, Clone)]
@@ -15,7 +22,7 @@ pub struct VisitBlock {
     pub end_hour: f32,
     pub duration_min: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub players: Option<Vec<String>>,
+    pub players: Option<Vec<VisitPlayer>>,
 }
 
 /// 1日分のレーンデータ（週表示用）
@@ -221,13 +228,27 @@ pub fn save_day_memo(state: State<'_, DbState>, date: String, memo: String) -> R
     let mira = state.mira.lock().unwrap();
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
-    // 1001 文字目があるならそのバイト位置で切る。なければ全文をそのまま使う。
-    let max_len = memo.char_indices().nth(1000).map_or(memo.len(), |(i, _)| i);
+    // 設定 memo_max_length を優先し、なければデフォルト 1000 文字
+    let max_chars: usize = mira
+        .query_row(
+            "SELECT value FROM mira_settings WHERE key = 'memo_max_length'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1000);
+
+    let max_len = memo
+        .char_indices()
+        .nth(max_chars)
+        .map_or(memo.len(), |(i, _)| i);
     let trimmed = &memo[..max_len];
 
+    // R2-M-17: 新規 INSERT 時に data_version を "1" で明示する (NULL 化を避ける)
     mira.execute(
-        "INSERT INTO mira_journal_entries (date, user_memo, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?3)
+        "INSERT INTO mira_journal_entries (date, user_memo, data_version, created_at, updated_at)
+         VALUES (?1, ?2, '1', ?3, ?3)
          ON CONFLICT(date) DO UPDATE SET user_memo = ?2, updated_at = ?3",
         rusqlite::params![date, trimmed, now],
     )
@@ -236,8 +257,9 @@ pub fn save_day_memo(state: State<'_, DbState>, date: String, memo: String) -> R
     Ok(())
 }
 
-/// 手動マーカーを追加し、AUTOINCREMENT で付番された ID を返す。
-/// start/end はフロントの UTF-16 オフセットをそのまま i64 化して格納（負値は来ない前提）
+/// 手動マーカーを追加し、挿入されたIDを返す
+///
+/// R2-M-6: start < end / color 許可集合 / memo 長との越境を検証する
 #[tauri::command]
 pub fn add_manual_marker(
     state: State<'_, DbState>,
@@ -246,7 +268,36 @@ pub fn add_manual_marker(
     end: usize,
     color: String,
 ) -> Result<i64, String> {
+    // start < end
+    if start >= end {
+        return Err(format!("invalid marker range: {} >= {}", start, end));
+    }
+    // 許可された color のみ受け付ける
+    const ALLOWED: &[&str] = &["red", "blue", "green", "orange"];
+    if !ALLOWED.contains(&color.as_str()) {
+        return Err(format!("invalid marker color: {}", color));
+    }
+
     let mira = state.mira.lock().unwrap();
+
+    // memo 文字数 (UTF-16 単位) を取得し、end が越境していないか確認する
+    let memo_len_utf16: usize = mira
+        .query_row(
+            "SELECT user_memo FROM mira_journal_entries WHERE date = ?1",
+            [&date],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .ok()
+        .flatten()
+        .map(|s| s.encode_utf16().count())
+        .unwrap_or(0);
+    if end > memo_len_utf16 {
+        return Err(format!(
+            "marker end ({}) exceeds memo length ({})",
+            end, memo_len_utf16
+        ));
+    }
+
     mira.execute(
         "INSERT INTO mira_manual_markers (date, start_pos, end_pos, color) VALUES (?1, ?2, ?3, ?4)",
         rusqlite::params![date, start as i64, end as i64, color],
@@ -309,16 +360,42 @@ fn query_visits_for_date(
             let duration_sec: u32 = row.get::<_, Option<u32>>(4)?.unwrap_or(0);
 
             let start_hour = parse_hour_fraction(&join_time);
+            // R2-M-16: leave_time が NULL かつ duration_sec=0 だと end==start となり
+            // ブロック高さがゼロで描画消失する。
+            // - duration_sec から end を出す。
+            // - 0 のときは「現在進行中」と見なし、今が join 日付なら now まで、
+            //   過去日なら最低 +0.1h (約 6 分) の高さを保証する。
             let end_hour = leave_time
                 .as_deref()
                 .map(parse_hour_fraction)
-                .unwrap_or_else(|| start_hour + (duration_sec as f32 / 3600.0));
+                .unwrap_or_else(|| {
+                    if duration_sec > 0 {
+                        start_hour + (duration_sec as f32 / 3600.0)
+                    } else {
+                        // join 日が今日かどうかでフォールバック先を変える
+                        let now = chrono::Local::now();
+                        let today_str = now.format("%Y-%m-%d").to_string();
+                        let join_date = join_time
+                            .split([' ', 'T'])
+                            .next()
+                            .unwrap_or("");
+                        if join_date == today_str {
+                            let now_h = now.hour() as f32
+                                + now.minute() as f32 / 60.0
+                                + now.second() as f32 / 3600.0;
+                            (start_hour + 0.1).max(now_h)
+                        } else {
+                            start_hour + 0.1
+                        }
+                    }
+                });
 
             Ok((world_id, world_name, start_hour, end_hour, duration_sec / 60))
         })
         .map_err(|e| e.to_string())?
         .filter_map(|r| r.ok())
         .map(|(world_id, world_name, start_hour, end_hour, duration_min)| {
+            // R2-M-9: world_id ベースで色生成。world_name が変わっても色が固定される。
             let color_hex = get_or_generate_world_color(mira, &world_id, &world_name);
             VisitBlock {
                 world_id,
@@ -410,15 +487,16 @@ fn query_photos_for_date(
     Ok(photos)
 }
 
-// 当日の Join 履歴を時刻で各 VisitBlock に振り分け、`players` を埋める。
-// Join 時刻が訪問の [start_hour, end_hour) に入るかどうかで判定する。
+// 各訪問ブロックに同席プレイヤー (user_id + name) を紐付ける
+//
+// R2-M-22: 同名別 vrchat_id が混在しても区別できるよう user_id を保持する。
 fn attach_players_to_visits(
     stella: &rusqlite::Connection,
     date: &str,
     visits: &mut [VisitBlock],
 ) {
     let Ok(mut stmt) = stella.prepare(
-        "SELECT v.join_time, fu.account_name
+        "SELECT v.join_time, fu.vrchat_id, fu.account_name
          FROM with_users wu
          JOIN find_users fu ON fu.vrchat_id = wu.vrchat_id
          JOIN visits v ON v.id = wu.visit_id
@@ -429,32 +507,45 @@ fn attach_players_to_visits(
     };
 
     let Ok(rows) = stmt.query_map([date], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
     }) else {
         return;
     };
 
-    let entries: Vec<(f32, String)> = rows
+    let entries: Vec<(f32, String, String)> = rows
         .filter_map(|r| r.ok())
-        .map(|(join_time, name)| (parse_hour_fraction(&join_time), name))
+        .map(|(join_time, uid, name)| (parse_hour_fraction(&join_time), uid, name))
         .collect();
 
     for visit in visits.iter_mut() {
-        let players: Vec<String> = entries
-            .iter()
-            .filter(|(h, _)| *h >= visit.start_hour && *h < visit.end_hour)
-            .map(|(_, name)| name.clone())
-            .collect();
+        let mut players: Vec<VisitPlayer> = Vec::new();
+        let mut seen_uids: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for (h, uid, name) in &entries {
+            if *h < visit.start_hour || *h >= visit.end_hour {
+                continue;
+            }
+            if seen_uids.insert(uid.as_str()) {
+                players.push(VisitPlayer {
+                    user_id: uid.clone(),
+                    name: name.clone(),
+                });
+            }
+        }
         visit.players = if players.is_empty() { None } else { Some(players) };
     }
 }
 
-// ワールド色を Mira DB から引き、未登録なら world_name のハッシュからパレット色を生成して保存する。
-// 一度割り当てた色を変えないため INSERT OR IGNORE で初回のみ書き込む (ユーザー手動変更を温存)。
+// ワールドIDに対応する色を取得し、なければ生成して保存する
+//
+// R2-M-9: world_id ベースで色を生成し、ワールド名変更時にも色が固定されるようにする。
 fn get_or_generate_world_color(
     mira: &rusqlite::Connection,
     world_id: &str,
-    world_name: &str,
+    _world_name: &str,
 ) -> String {
     if let Ok(color) = mira.query_row(
         "SELECT color_hex FROM mira_world_colors WHERE world_id = ?1",
@@ -464,7 +555,7 @@ fn get_or_generate_world_color(
         return color;
     }
 
-    let color = world_color::generate_color(world_name);
+    let color = world_color::generate_color(world_id);
     let _ = mira.execute(
         "INSERT OR IGNORE INTO mira_world_colors (world_id, color_hex, is_custom) VALUES (?1, ?2, 0)",
         rusqlite::params![world_id, &color],

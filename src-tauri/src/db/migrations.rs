@@ -57,6 +57,7 @@ pub fn run(conn: &Connection) -> Result<()> {
             value TEXT NOT NULL
         );
 
+        -- source_ref: 現状は mira_scheduled_events.id を文字列化して格納 (将来 snapshot 等の他通知種別にも対応するための汎用カラム)
         CREATE TABLE IF NOT EXISTS mira_dismissed_events (
             source_ref   TEXT PRIMARY KEY,
             dismissed_at DATETIME NOT NULL
@@ -64,21 +65,33 @@ pub fn run(conn: &Connection) -> Result<()> {
         ",
     )?;
 
-    // 後付けカラム migration:
-    // 初期版の mira_scheduled_events には remind_minutes_before / reminded が無かったため、
-    // pragma_table_info で存在確認した上で ALTER する。既存 DB を持つユーザを壊さないため。
-    // この 2 つは常にセットで追加するので片方の有無だけ見れば十分。
-    let has_remind_col: bool = conn
-        .prepare("SELECT COUNT(*) FROM pragma_table_info('mira_scheduled_events') WHERE name = 'remind_minutes_before'")
-        .and_then(|mut s| s.query_row([], |r| r.get::<_, i32>(0)))
-        .unwrap_or(0) > 0;
-
-    if !has_remind_col {
-        conn.execute_batch(
-            "ALTER TABLE mira_scheduled_events ADD COLUMN remind_minutes_before INTEGER NOT NULL DEFAULT 10;
-             ALTER TABLE mira_scheduled_events ADD COLUMN reminded INTEGER NOT NULL DEFAULT 0;"
-        )?;
-    }
+    // R2-M-11: 既存カラム確認を個別に行い、ALTER 1 本ずつをトランザクション内で実行する。
+    // execute_batch で複数 ALTER を一括実行すると、片方追加済みのときに全体が失敗し
+    // 「最初の ALTER だけ適用されて止まる」中途半端な状態を招くため。
+    add_column_if_missing(
+        conn,
+        "mira_scheduled_events",
+        "remind_minutes_before",
+        "INTEGER NOT NULL DEFAULT 10",
+    )?;
+    add_column_if_missing(
+        conn,
+        "mira_scheduled_events",
+        "reminded",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+    add_column_if_missing(
+        conn,
+        "mira_scheduled_events",
+        "recurrence_kind",
+        "TEXT",
+    )?;
+    add_column_if_missing(
+        conn,
+        "mira_scheduled_events",
+        "last_fired_at",
+        "TEXT",
+    )?;
 
     // 既知の設定キーにデフォルト値を投入する (既存値は INSERT OR IGNORE で温存)。
     // ここに無いキーは get_settings の `unwrap_or_default()` で空文字扱いになる。
@@ -103,6 +116,38 @@ pub fn run(conn: &Connection) -> Result<()> {
             "INSERT OR IGNORE INTO mira_settings (key, value) VALUES (?1, ?2)",
             [key, value],
         )?;
+    }
+
+    Ok(())
+}
+
+/// pragma_table_info で対象カラムの有無を確認し、未追加なら ALTER で追加する
+///
+/// R2-M-11: 個別チェック + 個別 ALTER により部分適用リスクを避ける。
+fn add_column_if_missing(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    column_def: &str,
+) -> Result<()> {
+    let count: i64 = conn
+        .query_row(
+            &format!(
+                "SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = ?1",
+                table
+            ),
+            [column],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+
+    if count == 0 {
+        // 単一 ALTER 文を 1 トランザクション内で実行する。失敗時はロールバックされ
+        // pragma 状態を維持できる。
+        conn.execute_batch(&format!(
+            "BEGIN; ALTER TABLE {} ADD COLUMN {} {}; COMMIT;",
+            table, column, column_def
+        ))?;
     }
 
     Ok(())

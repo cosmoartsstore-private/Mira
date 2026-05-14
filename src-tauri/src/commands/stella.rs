@@ -47,9 +47,11 @@ pub fn check_stellarecord_available() -> bool {
         .unwrap_or(false)
 }
 
-/// Mira を STELLARecord の連携アプリ (fastparty) として登録する。
-/// 通常の DbState.stella 経由 (読込専用) ではなく書込可能で別途開き直す点に注意。
-/// 既に登録済みでも INSERT OR REPLACE で上書きするので重複エラーは出ない。
+/// StellaRecord に Mira を登録する
+///
+/// R2-M-12: 既存レコードが存在しパスも一致する場合は INSERT OR REPLACE で
+/// 毎回 ~1MB の icon BLOB を再書込していた。SELECT で既存値を確認し、
+/// (path, icon) が変わっていない場合は UPDATE 自体を行わない。
 #[tauri::command]
 pub fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String> {
     let db_path = get_stellarecord_db_path()
@@ -63,20 +65,55 @@ pub fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String>
 
     let exe_path = std::env::current_exe()
         .map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
+    let exe_str = exe_path.to_string_lossy().to_string();
 
     let icon_data = load_app_icon(&app);
 
-    conn.execute(
-        "INSERT OR REPLACE INTO apps (name, description, path, category, icon)
-         VALUES (?1, ?2, ?3, 'fastparty', ?4)",
-        rusqlite::params![
-            "Mira",
-            "VRChat活動ジャーナル",
-            exe_path.to_string_lossy().to_string(),
-            icon_data,
-        ],
-    )
-    .map_err(|e| format!("登録に失敗しました: {e}"))?;
+    // 既存レコードの (path, icon) を取得
+    let existing: Option<(String, Option<Vec<u8>>)> = conn
+        .query_row(
+            "SELECT path, icon FROM apps WHERE name = ?1",
+            ["Mira"],
+            |row| {
+                let p: String = row.get(0)?;
+                let i: Option<Vec<u8>> = row.get(1)?;
+                Ok((p, i))
+            },
+        )
+        .ok();
+
+    match existing {
+        Some((cur_path, cur_icon)) => {
+            // path / icon が変わっていなければ書き込みをスキップ
+            if cur_path == exe_str && cur_icon == icon_data {
+                return Ok("StellaRecord に既に登録済みです (差分なし)".to_string());
+            }
+            // 差分あり → UPDATE のみ実施
+            conn.execute(
+                "UPDATE apps SET description = ?1, path = ?2, category = 'fastparty', icon = ?3 WHERE name = 'Mira'",
+                rusqlite::params![
+                    "VRChat活動ジャーナル",
+                    exe_str,
+                    icon_data,
+                ],
+            )
+            .map_err(|e| format!("更新に失敗しました: {e}"))?;
+        }
+        None => {
+            // 未登録 → INSERT
+            conn.execute(
+                "INSERT INTO apps (name, description, path, category, icon)
+                 VALUES (?1, ?2, ?3, 'fastparty', ?4)",
+                rusqlite::params![
+                    "Mira",
+                    "VRChat活動ジャーナル",
+                    exe_str,
+                    icon_data,
+                ],
+            )
+            .map_err(|e| format!("登録に失敗しました: {e}"))?;
+        }
+    }
 
     Ok("StellaRecord に登録しました".to_string())
 }

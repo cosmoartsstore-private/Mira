@@ -34,14 +34,18 @@ export class Store<T> {
   }
 }
 
-// 今週の「週始まり」の日付文字列 (YYYY-MM-DD) を返す。
-// Mira は週始まりを日曜日と定義しているため getDay()(0=Sun) ぶん引き戻している。
-// 関数名は旧版の名残で getMonday だったが、実装も呼び側も日曜始まりで一貫している。
-export function getThisWeekStart(): string {
+// 今週の月曜日（ISO週始まり）のローカル日付文字列を返す
+export function getMonday(): string {
   const d = new Date();
   const day = d.getDay();
-  const sunday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day);
-  return sunday.toISOString().split("T")[0];
+  // 日曜(0)を週末扱いにし、月曜始まりへのオフセットを計算
+  const offset = day === 0 ? 6 : day - 1;
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - offset);
+  // toISOString は UTC 化されローカル日付とずれるため、ローカルでゼロ埋めフォーマット
+  const y = monday.getFullYear();
+  const MM = String(monday.getMonth() + 1).padStart(2, "0");
+  const dd = String(monday.getDate()).padStart(2, "0");
+  return `${y}-${MM}-${dd}`;
 }
 
 // 現在アクティブなナビゲーションタブ
@@ -52,7 +56,7 @@ export const focusedDate = new Store<string | null>(null);
 
 // 表示中の週の開始日（日曜日、YYYY-MM-DD）。DEV では固定日でデータが見えるようにしてある。
 export const currentWeekStart = new Store<string>(
-  import.meta.env.DEV ? "2026-04-19" : getThisWeekStart()
+  import.meta.env.DEV ? "2026-04-19" : getMonday()
 );
 
 // CalendarPage で表示中の年月
@@ -72,6 +76,8 @@ export const settings = new Store<MiraSettings>({
   voicevox_enabled: false,
   voice_character: "metan",
   reminder_sound_enabled: true,
+  view_hour_start: 0,
+  view_hour_end: 24,
 });
 
 // STELLARecord DB に接続できているか（HomePage の空状態判定に使う）

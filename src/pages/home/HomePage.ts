@@ -1,7 +1,7 @@
-import { getWeekLaneData, getDayFocusData, saveDayMemo, addManualMarker, removeManualMarker } from "../../api/commands";
+import { getWeekLaneData, getDayFocusData, saveDayMemo, addManualMarker, removeManualMarker, getStartupInfo } from "../../api/commands";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { currentWeekStart, focusedDate, stellaConnected, settings, notifications, getThisWeekStart, Subscriptions } from "../../state/store";
-import type { WeekLaneData, DayFocusData, MarkerSpan, ManualMarker, PhotoEntry } from "../../state/types";
+import { currentWeekStart, focusedDate, stellaConnected, settings, notifications, getMonday, Subscriptions } from "../../state/store";
+import type { WeekLaneData, DayFocusData, MarkerSpan, ManualMarker, PhotoEntry, VisitPlayer } from "../../state/types";
 
 // HomePage は 2 モードを切り替える単一ページ:
 //   - 週ビュー: 日曜始まり 7 日分のタイムラインレーン (currentWeekStart 駆動)
@@ -18,8 +18,23 @@ export function HomePage(subs: Subscriptions): HTMLElement {
         <div class="empty-state-icon">✦</div>
         <p class="empty-state-message">STELLARecord との接続を確認しています…</p>
         <p class="empty-state-hint">STELLARecord がインストールされていることを確認してください。</p>
+        <button class="empty-state-retry">再接続</button>
       </div>
     `;
+    const retryBtn = container.querySelector<HTMLButtonElement>(".empty-state-retry");
+    if (retryBtn) {
+      retryBtn.addEventListener("click", async () => {
+        retryBtn.disabled = true;
+        retryBtn.textContent = "接続中…";
+        try {
+          const info = await getStartupInfo();
+          stellaConnected.set(info.stella_connected);
+          notifications.set(info.pending_notifications);
+        } catch { /* */ }
+        retryBtn.disabled = false;
+        retryBtn.textContent = "再接続";
+      });
+    }
     return container;
   }
 
@@ -56,7 +71,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
   todayBtn.className = "today-btn";
   todayBtn.textContent = "今週";
   todayBtn.addEventListener("click", () => {
-    currentWeekStart.set(getThisWeekStart());
+    currentWeekStart.set(getMonday());
   });
 
   weekNav.appendChild(prevWeekBtn);
@@ -175,7 +190,20 @@ export function HomePage(subs: Subscriptions): HTMLElement {
   // visit ブロックは絶対配置 (%) で、prevBottomHour による「直前ブロックの底以下に出さない」
   // 補正で、ごく短い訪問が重なって不可視になるのを防ぐ。
   function renderLane(data: WeekLaneData): void {
-    const { hour_start, hour_end } = data;
+    // 設定の view_hour_start/end を優先してキャップする
+    const s = settings.get();
+    const cfgStart = (s.view_hour_start ?? 0);
+    const cfgEnd = (s.view_hour_end ?? 24);
+    let hour_start = data.hour_start;
+    let hour_end = data.hour_end;
+    if (cfgEnd > cfgStart) {
+      hour_start = Math.max(hour_start, cfgStart);
+      hour_end = Math.min(hour_end, cfgEnd);
+      if (hour_end <= hour_start) {
+        hour_start = cfgStart;
+        hour_end = cfgEnd;
+      }
+    }
     const totalHours = hour_end - hour_start;
     lastHourStart = hour_start;
     lastHourEnd = hour_end;
@@ -235,13 +263,20 @@ export function HomePage(subs: Subscriptions): HTMLElement {
         col.addEventListener("click", () => focusedDate.set(lane.date));
       }
 
+      // R2-M-18: 表示範囲外の visit は描画せず、件数バッジに集計する
+      let outOfRange = 0;
       let prevBottomHour = 0;
       for (let vi = 0; vi < lane.visits.length; vi++) {
         const visit = lane.visits[vi];
+        // 完全に表示範囲外 (end <= start_visible or start >= end_visible) はスキップ
+        if (visit.end_hour <= hour_start || visit.start_hour >= hour_end) {
+          outOfRange += 1;
+          continue;
+        }
         const block = document.createElement("div");
         block.className = "visit-block";
-        const visualStart = Math.max(visit.start_hour, prevBottomHour);
-        const visualEnd = Math.max(visit.end_hour, visualStart);
+        const visualStart = Math.max(visit.start_hour, prevBottomHour, hour_start);
+        const visualEnd = Math.min(Math.max(visit.end_hour, visualStart), hour_end);
         const top = ((visualStart - hour_start) / totalHours) * 100;
         const height = ((visualEnd - visualStart) / totalHours) * 100;
 
@@ -255,6 +290,16 @@ export function HomePage(subs: Subscriptions): HTMLElement {
         if (height < 3) block.classList.add("visit-compact");
         col.appendChild(block);
         prevBottomHour = Math.max(visualEnd, visualStart + (0.15 / 100) * totalHours);
+      }
+
+      if (outOfRange > 0) {
+        const badge = document.createElement("div");
+        badge.className = "lane-out-of-range";
+        badge.textContent = `外 +${outOfRange}件`;
+        badge.title = "タイムライン表示範囲外の訪問。設定で開始/終了時刻を変更すると表示できます。";
+        badge.style.cssText = "position:absolute;bottom:2px;right:2px;font-size:10px;padding:1px 4px;border-radius:3px;background:rgba(140,90,90,0.18);color:#a55;pointer-events:none;";
+        col.style.position = col.style.position || "relative";
+        col.appendChild(badge);
       }
 
       // Notification pins for this day
@@ -362,10 +407,41 @@ export function HomePage(subs: Subscriptions): HTMLElement {
   let memoGen = 0;
   // メモ入力 1 秒後に走らせる自動保存タイマー。ページ破棄時に必ず clearTimeout する。
   let memoSaveTimeout: number | undefined;
-  subs.add(() => clearTimeout(memoSaveTimeout));
+  let pendingMemoSave: { date: string; getValue: () => string } | null = null;
+  // unmount 時に未保存のメモを flush する
+  subs.add(() => {
+    if (memoSaveTimeout) {
+      clearTimeout(memoSaveTimeout);
+      memoSaveTimeout = undefined;
+      if (pendingMemoSave) {
+        const { date, getValue } = pendingMemoSave;
+        saveDayMemo(date, getValue()).catch(() => {});
+        pendingMemoSave = null;
+      }
+    }
+  });
+
+  // 日付切替時に未保存のメモを flush する (保存完了まで await できるよう async)
+  async function flushPendingMemo(): Promise<void> {
+    if (!memoSaveTimeout && !pendingMemoSave) return;
+    if (memoSaveTimeout) {
+      clearTimeout(memoSaveTimeout);
+      memoSaveTimeout = undefined;
+    }
+    if (pendingMemoSave) {
+      const { date, getValue } = pendingMemoSave;
+      pendingMemoSave = null;
+      try {
+        await saveDayMemo(date, getValue());
+      } catch {
+        // 保存失敗は致命ではないので握り潰す
+      }
+    }
+  }
 
   // 指定日の詳細データを取得して renderMemo に渡す。loadGen と同じ理由で世代比較する。
   async function loadMemo(date: string): Promise<void> {
+    await flushPendingMemo();
     const gen = ++memoGen;
     memoInner.innerHTML = '<div class="loading">読み込み中…</div>';
     try {
@@ -434,8 +510,11 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     textarea.addEventListener("input", () => {
       counter.textContent = `${textarea.value.length} / ${maxLen}`;
       clearTimeout(memoSaveTimeout);
+      pendingMemoSave = { date: data.date, getValue: () => textarea.value };
       memoSaveTimeout = window.setTimeout(() => {
         saveDayMemo(data.date, textarea.value).catch(() => {});
+        pendingMemoSave = null;
+        memoSaveTimeout = undefined;
       }, 1000);
     });
 
@@ -540,8 +619,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     });
   }
 
-  // 訪問選択時に写真リストの上に挿入する「Join 記録」(同席ユーザー名チップ) を組み立てる
-  function renderJoinRecord(players: string[]): HTMLElement {
+  // Join記録セクションを構築する (R2-M-22: VisitPlayer 構造を受ける)
+  function renderJoinRecord(players: VisitPlayer[]): HTMLElement {
     const section = document.createElement("div");
     section.className = "join-record";
 
@@ -552,10 +631,12 @@ export function HomePage(subs: Subscriptions): HTMLElement {
 
     const list = document.createElement("div");
     list.className = "join-record-list";
-    for (const name of players) {
+    for (const p of players) {
       const chip = document.createElement("span");
       chip.className = "join-record-name";
-      chip.textContent = name;
+      chip.textContent = p.name;
+      chip.dataset.userId = p.user_id;
+      chip.title = p.user_id;
       list.appendChild(chip);
     }
     section.appendChild(list);
@@ -828,8 +909,11 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       renderMarkerText(markerView, newVal, data.memo_markers, data.manual_markers);
 
       clearTimeout(memoSaveTimeout);
+      pendingMemoSave = { date: data.date, getValue: () => textarea.value };
       memoSaveTimeout = window.setTimeout(() => {
         saveDayMemo(data.date, textarea.value).catch(() => {});
+        pendingMemoSave = null;
+        memoSaveTimeout = undefined;
       }, 1000);
     }, 300);
   }
@@ -871,6 +955,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     prevBtn.addEventListener("click", (e) => { e.stopPropagation(); current--; update(); });
     nextBtn.addEventListener("click", (e) => { e.stopPropagation(); current++; update(); });
 
+    let closed = false;
+
     // ライトボックスを閉じてイベントリスナーを解除する
     let closed = false;
     function close(): void {
@@ -892,6 +978,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     img.addEventListener("click", (e) => e.stopPropagation());
     closeBtn.addEventListener("click", close);
     document.addEventListener("keydown", keyHandler);
+    // ページ unmount 時にライトボックスが開いたままでもリスナーが残らないよう subs に登録
+    subs.add(() => close());
 
     overlay.appendChild(img);
     overlay.appendChild(closeBtn);
@@ -906,7 +994,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
 
   // ストア購読: focusedDate ↔ enterFocusMode/exitFocusMode、currentWeekStart 変化で再ロード
   subs.add(
-    focusedDate.subscribe((date) => {
+    focusedDate.subscribe((date, prev) => {
+      // 日付切替時にも flush する (loadMemo 内で await されるためここでは fire-and-forget でも順序は保証される)
+      if (prev && prev !== date) flushPendingMemo().catch(() => {});
       if (date) {
         enterFocusMode(date);
       } else {
@@ -922,7 +1012,14 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     })
   );
 
-  // 全体キーバインド: Esc でフォーカス解除、←/→ で週送り (フォーカス中は無効化)
+  // 予定追加/削除によって notifications が更新されたら週を再描画
+  subs.add(
+    notifications.subscribe(() => {
+      if (!focusedDate.get()) loadWeek();
+    })
+  );
+
+  // Keyboard
   const handler = (e: KeyboardEvent): void => {
     if (e.key === "Escape" && focusedDate.get()) {
       focusedDate.set(null);

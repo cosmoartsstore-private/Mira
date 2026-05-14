@@ -1,6 +1,10 @@
-// バックエンド (Rust serde) と一致させる型定義。フィールド名はそのまま snake_case。
+// 同席プレイヤー (user_id + 表示名)
+export interface VisitPlayer {
+  user_id: string;
+  name: string;
+}
 
-// ワールド訪問の時間帯ブロック。hour は 0..30 の小数（24+ で深夜越え対応）。
+// ワールド訪問の時間帯ブロック
 export interface VisitBlock {
   world_id: string;
   world_name: string;
@@ -8,7 +12,7 @@ export interface VisitBlock {
   start_hour: number;
   end_hour: number;
   duration_min: number;
-  players?: string[];
+  players?: VisitPlayer[];
 }
 
 // 1日分のタイムラインレーン（週表示用）
@@ -107,9 +111,12 @@ export interface StartupInfo {
 
 // 起動時に表示する予定通知の最小表示データ
 export interface ScheduleNotification {
+  id: number;
   title: string;
   scheduled_at: string;
   event_type: string;
+  // dismiss 比較用の安定キー (非繰り返し: "<id>" / 週次: "<id>_YYYY-MM-DD")
+  source_ref: string;
 }
 
 // アプリ全体の設定値（DB の mira_settings テーブルと対応）
@@ -123,6 +130,8 @@ export interface MiraSettings {
   voicevox_enabled: boolean;
   voice_character: string;
   reminder_sound_enabled: boolean;
+  view_hour_start: number;
+  view_hour_end: number;
 }
 
 // リマインダー発火時のイベントデータ（ポーリングで取得）
@@ -134,5 +143,16 @@ export interface ReminderEvent {
   minutes_until: number;
 }
 
-// ナビゲーションタブの識別子（debug は DEV ビルドのみ表示）
+// スナップショット集計データ (annual/quarterly レビュー用)
+export interface SnapshotSummary {
+  key: string;
+  label: string;
+  period_start: string;
+  period_end: string;
+  event_count: number;
+  memo_day_count: number;
+  memo_char_total: number;
+}
+
+// ナビゲーションタブの識別子
 export type TabId = "home" | "calendar" | "settings" | "debug";

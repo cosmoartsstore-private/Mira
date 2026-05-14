@@ -3,6 +3,9 @@ use tauri::State;
 
 use crate::db::DbState;
 
+/// remind_minutes_before 等の上限 (24時間)
+const REMIND_MIN_MAX: i64 = 1440;
+
 /// アプリ全体の設定値
 #[derive(Serialize)]
 pub struct MiraSettings {
@@ -15,6 +18,8 @@ pub struct MiraSettings {
     pub voicevox_enabled: bool,
     pub voice_character: String,
     pub reminder_sound_enabled: bool,
+    pub view_hour_start: u32,
+    pub view_hour_end: u32,
 }
 
 /// お気に入り登録されたユーザー情報
@@ -54,6 +59,8 @@ pub fn get_settings(state: State<'_, DbState>) -> Result<MiraSettings, String> {
         voicevox_enabled: get("voicevox_enabled") == "1",
         voice_character: get("voice_character"),
         reminder_sound_enabled: get("reminder_sound_enabled") == "1",
+        view_hour_start: get("view_hour_start").parse().unwrap_or(0),
+        view_hour_end: get("view_hour_end").parse().unwrap_or(24),
     })
 }
 
@@ -61,6 +68,58 @@ pub fn get_settings(state: State<'_, DbState>) -> Result<MiraSettings, String> {
 #[tauri::command]
 pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Result<(), String> {
     let mira = state.mira.lock().unwrap();
+
+    // view_hour_start / view_hour_end は範囲と前後関係を検証する
+    if key == "view_hour_start" || key == "view_hour_end" {
+        let parsed: u32 = value
+            .parse()
+            .map_err(|_| format!("invalid {} value: {}", key, value))?;
+        // detect_activity_range が 30 まで返すため上限は 30 に合わせる
+        if parsed > 30 {
+            return Err(format!("{} must be in 0..=30", key));
+        }
+        // 反対側の値と比較し start < end を保証する
+        let other_key = if key == "view_hour_start" {
+            "view_hour_end"
+        } else {
+            "view_hour_start"
+        };
+        let other: u32 = mira
+            .query_row(
+                "SELECT value FROM mira_settings WHERE key = ?1",
+                [other_key],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| if other_key == "view_hour_end" { 24 } else { 0 });
+
+        let (start, end) = if key == "view_hour_start" {
+            (parsed, other)
+        } else {
+            (other, parsed)
+        };
+        if start >= end {
+            return Err(format!(
+                "view_hour_start ({}) must be less than view_hour_end ({})",
+                start, end
+            ));
+        }
+    }
+
+    // remind_minutes_before 設定キー (将来用) の安全側検証
+    if key == "remind_minutes_before_default" {
+        let parsed: i64 = value
+            .parse()
+            .map_err(|_| format!("invalid {} value: {}", key, value))?;
+        if !(0..=REMIND_MIN_MAX).contains(&parsed) {
+            return Err(format!(
+                "{} must be in 0..={}, got {}",
+                key, REMIND_MIN_MAX, parsed
+            ));
+        }
+    }
+
     mira.execute(
         "INSERT OR REPLACE INTO mira_settings (key, value) VALUES (?1, ?2)",
         rusqlite::params![key, value],
@@ -69,12 +128,54 @@ pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Res
     Ok(())
 }
 
-/// Mira の favorite テーブルを引き、STELLA の players から display_name を解決して付与する。
-/// STELLA 未接続 or 名前未取得時は user_id そのものをフォールバック表示名として使う。
+/// view_hour_start / view_hour_end を一度のトランザクションで原子的に更新する
+///
+/// set_setting を 1 キーずつ呼ぶと、片方を更新した直後に
+/// 一時的に start >= end になり 2 回目のリクエストがエラーになる詰まりが起きる。
+/// このコマンドは両値を 1 トランザクションで書き換え、その内部一貫性を保証する。
+#[tauri::command]
+pub fn set_view_hour_range(
+    state: State<'_, DbState>,
+    start: u32,
+    end: u32,
+) -> Result<(), String> {
+    if start > 30 || end > 30 {
+        return Err(format!(
+            "view_hour values must be in 0..=30, got start={}, end={}",
+            start, end
+        ));
+    }
+    if start >= end {
+        return Err(format!(
+            "view_hour_start ({}) must be less than view_hour_end ({})",
+            start, end
+        ));
+    }
+
+    let mut mira = state.mira.lock().unwrap();
+    let tx = mira
+        .transaction()
+        .map_err(|e| e.to_string())?;
+    tx.execute(
+        "INSERT OR REPLACE INTO mira_settings (key, value) VALUES ('view_hour_start', ?1)",
+        [start.to_string()],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute(
+        "INSERT OR REPLACE INTO mira_settings (key, value) VALUES ('view_hour_end', ?1)",
+        [end.to_string()],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// お気に入りユーザー一覧をSTELLAの表示名付きで取得する
 #[tauri::command]
 pub fn get_favorite_users(state: State<'_, DbState>) -> Result<Vec<FavoriteUser>, String> {
-    let mira = state.mira.lock().unwrap();
+    // デッドロック回避のためロック順を stella → mira に統一
     let stella_guard = state.stella.lock().unwrap();
+    let mira = state.mira.lock().unwrap();
 
     let mut stmt = mira
         .prepare("SELECT user_id, nickname, line_color, note FROM mira_favorite_users ORDER BY added_at")

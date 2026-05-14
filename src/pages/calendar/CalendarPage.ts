@@ -1,5 +1,5 @@
-import { getMonthData, addEvent, removeEvent } from "../../api/commands";
-import { currentMonth, activeTab, currentWeekStart, focusedDate, Subscriptions } from "../../state/store";
+import { getMonthData, addEvent, removeEvent, refreshNotifications } from "../../api/commands";
+import { currentMonth, activeTab, currentWeekStart, focusedDate, notifications, Subscriptions } from "../../state/store";
 import { getJapaneseHolidays } from "../../utils/holidays";
 import type { CalendarEvent } from "../../state/types";
 
@@ -39,7 +39,7 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
 
   const legend = document.createElement("div");
   legend.className = "cal-legend";
-  legend.innerHTML = '活動した日<span class="legend-dot"></span>· 祝日<span class="legend-dot holiday"></span>· 予定<span class="legend-dot event"></span>';
+  legend.innerHTML = '活動した日<span class="legend-dot"></span>・ 祝日<span class="legend-dot holiday"></span>・ 予定<span class="legend-dot event"></span>';
 
   container.appendChild(pageHead);
   container.appendChild(monthNav);
@@ -66,8 +66,15 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
     }
   }
 
-  // 曜日ヘッダ + 月初までの空セル + 日付セルを順に grid に流し込む。
-  // 月曜始まりのため、1日の getDay()-1 がオフセット。日曜(0)は -1 を 6 に補正して最右に置く。
+  // 予定追加/削除後に notifications をサーバーから再取得してストアに反映する
+  async function refreshNotificationsStore(): Promise<void> {
+    try {
+      const list = await refreshNotifications();
+      notifications.set(list);
+    } catch { /* */ }
+  }
+
+  // カレンダーグリッドに日付セルを描画する
   function renderGrid(year: number, month: number, activeDays: number[], events: CalendarEvent[]): void {
     grid.innerHTML = "";
     const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -200,6 +207,10 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
           <option value="60">1時間前</option>
         </select>
       </div>
+      <label class="cal-popup-recurring">
+        <input class="cal-popup-recurring-input" type="checkbox" />
+        <span>毎週繰り返す</span>
+      </label>
       <div class="cal-popup-actions">
         <button class="cal-popup-cancel">キャンセル</button>
         <button class="cal-popup-save">追加</button>
@@ -222,11 +233,13 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
       if (!title) return;
       const time = popup.querySelector<HTMLInputElement>(".cal-popup-time")!.value;
       const remind = Number(popup.querySelector<HTMLSelectElement>(".cal-popup-remind")!.value);
+      const isRecurring = popup.querySelector<HTMLInputElement>(".cal-popup-recurring-input")!.checked;
       const scheduledAt = `${date} ${time}:00`;
       try {
-        await addEvent(title, scheduledAt, remind);
+        await addEvent(title, scheduledAt, remind, isRecurring, isRecurring ? "weekly" : null);
         popup.remove();
-        loadMonth();
+        await loadMonth();
+        await refreshNotificationsStore();
       } catch { /* */ }
     });
 
@@ -270,7 +283,8 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
       try {
         await removeEvent(evt.id);
         popup.remove();
-        loadMonth();
+        await loadMonth();
+        await refreshNotificationsStore();
       } catch { /* */ }
     });
 

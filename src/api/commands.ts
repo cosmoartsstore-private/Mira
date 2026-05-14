@@ -9,6 +9,8 @@ import type {
   StartupInfo,
   MiraSettings,
   ReminderEvent,
+  ScheduleNotification,
+  SnapshotSummary,
 } from "../state/types";
 
 // 起動情報（STELLA 接続・予定通知・レビュー誘導）を一括取得する
@@ -16,7 +18,27 @@ export async function getStartupInfo(): Promise<StartupInfo> {
   return invoke("get_startup_info");
 }
 
-// 指定週 (Sun始まり, YYYY-MM-DD) から7日分のレーンデータを取得する
+// pending 通知だけを再取得するタスク (予定追加/削除後)
+export async function refreshNotifications(): Promise<ScheduleNotification[]> {
+  return invoke("get_pending_notifications");
+}
+
+// 起動通知を恒久的に dismiss する (source_ref ベース)
+export async function dismissNotification(sourceRef: string): Promise<void> {
+  return invoke("dismiss_notification", { sourceRef });
+}
+
+// レビューキー (snapshot_* / annual_*) を既読にする
+export async function markReviewSeen(key: string): Promise<void> {
+  return invoke("mark_review_seen", { key });
+}
+
+// スナップショット/年間レビューの集計を取得する
+export async function getSnapshotSummary(key: string): Promise<SnapshotSummary> {
+  return invoke("get_snapshot_summary", { key });
+}
+
+// 指定週のタイムラインデータを取得する
 export async function getWeekLaneData(weekStart: string): Promise<WeekLaneData> {
   return invoke("get_week_lane_data", { weekStart });
 }
@@ -46,7 +68,12 @@ export async function setSetting(key: string, value: string): Promise<void> {
   return invoke("set_setting", { key, value });
 }
 
-// 発火時刻に達した未通知リマインダーを取得し、同時に通知済みに更新する
+// view_hour_start と view_hour_end を原子的に更新する (順序依存エラーを防ぐ)
+export async function setViewHourRange(start: number, end: number): Promise<void> {
+  return invoke("set_view_hour_range", { start, end });
+}
+
+// 発火すべきリマインダーを確認する
 export async function checkDueReminders(): Promise<ReminderEvent[]> {
   return invoke("check_due_reminders");
 }
@@ -61,8 +88,12 @@ export async function registerToStellarecord(): Promise<string> {
   return invoke("register_to_stellarecord");
 }
 
-// 手動マーカーを追加し、付番された ID を返す。
-// start/end は UTF-16 コードユニット位置 (frontend の getSelectionOffsets 由来)。
+// STELLARecordからMiraを登録解除する
+export async function unregisterFromStellarecord(): Promise<string> {
+  return invoke("unregister_from_stellarecord");
+}
+
+// 手動マーカーを追加してIDを返す
 export async function addManualMarker(
   date: string,
   start: number,
@@ -81,9 +112,17 @@ export async function removeManualMarker(id: number): Promise<void> {
 export async function addEvent(
   title: string,
   scheduledAt: string,
-  remindMinutesBefore: number
+  remindMinutesBefore: number,
+  isRecurring: boolean = false,
+  recurrenceKind: string | null = null
 ): Promise<number> {
-  return invoke("add_event", { title, scheduledAt, remindMinutesBefore });
+  return invoke("add_event", {
+    title,
+    scheduledAt,
+    remindMinutesBefore,
+    isRecurring,
+    recurrenceKind,
+  });
 }
 
 // 指定 ID の予定イベントを削除する

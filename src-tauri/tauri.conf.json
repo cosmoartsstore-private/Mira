@@ -5,7 +5,7 @@
   "identifier": "com.cosmoartsstore.mira",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://localhost:1421",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' asset: http://asset.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost http://localhost:1420 ws://localhost:1420 https://fonts.googleapis.com https://fonts.gstatic.com;",
+      "csp": "default-src 'self' asset: http://asset.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost http://localhost:1421 ws://localhost:1421 https://fonts.googleapis.com https://fonts.gstatic.com;",
       "assetProtocol": {
         "enable": true,
         "scope": ["**"]

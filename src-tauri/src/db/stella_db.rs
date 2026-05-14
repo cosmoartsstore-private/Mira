@@ -15,11 +15,8 @@ pub fn try_connect() -> Option<Connection> {
         return None;
     }
 
-    let conn = Connection::open_with_flags(
-        &db_path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .ok()?;
+    // NO_MUTEX は使用しない (デフォルトの SERIALIZED モードで多重アクセスを直列化させる)
+    let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
 
     conn.execute_batch("PRAGMA query_only = ON;").ok()?;
 

@@ -59,14 +59,16 @@ pub fn find_markers(
                 continue;
             }
             for (pos, _) in text.match_indices(term) {
-                let byte_range = (pos, pos + term.len());
-                if !used.iter().any(|u| overlaps(*u, byte_range)) {
-                    used.push(byte_range);
-                    let start_u16 = utf16_offset_at(&utf16_offsets, byte_range.0);
-                    let end_u16 = utf16_offset_at(&utf16_offsets, byte_range.1);
+                let byte_end = pos + term.len();
+                // バイトオフセットを UTF-16 単位に変換する (TS側が UTF-16 で扱うため)
+                let start_utf16 = text[..pos].encode_utf16().count();
+                let end_utf16 = text[..byte_end].encode_utf16().count();
+                let range = (start_utf16, end_utf16);
+                if !used.iter().any(|u| overlaps(*u, range)) {
+                    used.push(range);
                     matches.push(MarkerMatch {
-                        start: start_u16,
-                        end: end_u16,
+                        start: start_utf16,
+                        end: end_utf16,
                         kind: kind.clone(),
                         text: term.to_string(),
                     });
@@ -82,28 +84,4 @@ pub fn find_markers(
 // 2 つの byte 範囲 [a.0, a.1) と [b.0, b.1) が交差するかを判定する (半開区間)
 fn overlaps(a: (usize, usize), b: (usize, usize)) -> bool {
     a.0 < b.1 && b.0 < a.1
-}
-
-// 文字列の各 char 境界における (byte_offset, utf16_offset) をすべて並べた変換表を作る。
-// 末尾には文字列終端の (text.len(), total_utf16_len) も入れて、文字列末尾 byte 位置も解決できるようにする。
-// utf16 単位は BMP=1, サロゲートペア対応文字 (絵文字など) =2 が混在し得る。
-fn build_utf16_offsets(s: &str) -> Vec<(usize, usize)> {
-    let mut offsets = Vec::with_capacity(s.len() + 1);
-    let mut u16_count = 0;
-    for (byte_idx, ch) in s.char_indices() {
-        offsets.push((byte_idx, u16_count));
-        u16_count += ch.len_utf16();
-    }
-    offsets.push((s.len(), u16_count));
-    offsets
-}
-
-// 任意の byte 位置を UTF-16 オフセットに変換する。境界に当たれば二分探索でその値、
-// 中間に当たる (multi-byte 文字内側) ならその直前の境界の UTF-16 オフセットを返す。
-// match_indices の結果は必ず char 境界なので通常 Err パスには来ない。
-fn utf16_offset_at(offsets: &[(usize, usize)], byte_pos: usize) -> usize {
-    match offsets.binary_search_by_key(&byte_pos, |&(b, _)| b) {
-        Ok(i) => offsets[i].1,
-        Err(i) => offsets.get(i.saturating_sub(1)).map(|&(_, u)| u).unwrap_or(0),
-    }
 }

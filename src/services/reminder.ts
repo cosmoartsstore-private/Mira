@@ -20,31 +20,59 @@ const TIME_KEYS: Record<number, string> = {
   60: "1h",
 };
 
-// 30 秒ポーリング用の interval ID（多重起動防止に undefined チェック）
-let intervalId: number | undefined;
+const BASE_INTERVAL_MS = 30_000;
+const MAX_INTERVAL_MS = 5 * 60_000; // 5min まで指数で広げる
 
-// ポーリングを開始する。既に起動済みなら no-op（多重起動防止）。
+let intervalId: number | undefined;
+let currentIntervalMs = BASE_INTERVAL_MS;
+// 連続失敗カウンタ。指数バックオフのために保持する
+let consecutiveFailures = 0;
+
+// リマインダーのポーリングを開始する (多重登録防止)
 export function startReminderService(): void {
   if (intervalId !== undefined) return;
-  intervalId = window.setInterval(pollReminders, 30_000);
+  consecutiveFailures = 0;
+  currentIntervalMs = BASE_INTERVAL_MS;
+  scheduleNext();
 }
 
 // ポーリングを停止する。停止中なら no-op。
 export function stopReminderService(): void {
   if (intervalId === undefined) return;
-  clearInterval(intervalId);
+  clearTimeout(intervalId);
   intervalId = undefined;
 }
 
-// バックエンドに発火対象を問い合わせて 1 件ずつ通知発火する。例外は次の周期に任せる。
+// 次回のポーリングをスケジュールする (指数バックオフ対応)
+function scheduleNext(): void {
+  intervalId = window.setTimeout(async () => {
+    await pollReminders();
+    if (intervalId === undefined) return; // 途中で stop されたら何もしない
+    scheduleNext();
+  }, currentIntervalMs);
+}
+
+// バックエンドに期限到来リマインダーを問い合わせる
+//
+// R2-M-15: 成功時は consecutiveFailures をリセットしバックオフを解除する。
+// 失敗時は指数バックオフで間隔を広げつつ永久停止はしない (一時的な DB ロック等から
+// 自動復帰させるため)。
 async function pollReminders(): Promise<void> {
   try {
     const reminders = await checkDueReminders();
+    consecutiveFailures = 0;
+    currentIntervalMs = BASE_INTERVAL_MS;
     for (const r of reminders) {
       await fireReminder(r);
     }
-  } catch {
-    // 次の周期でリトライ（一時的な DB ロック等を想定）
+  } catch (e) {
+    consecutiveFailures += 1;
+    // 指数バックオフ (30s → 60s → 120s → 240s → 5min cap)
+    currentIntervalMs = Math.min(BASE_INTERVAL_MS * Math.pow(2, Math.min(consecutiveFailures, 5) - 1), MAX_INTERVAL_MS);
+    console.warn(
+      `[reminder] checkDueReminders 失敗 (${consecutiveFailures}回連続) 次回 ${currentIntervalMs}ms 後`,
+      e,
+    );
   }
 }
 
@@ -58,7 +86,8 @@ async function fireReminder(reminder: ReminderEvent): Promise<void> {
 
   showReminderToast(reminder);
 
-  if (s.voicevox_enabled && s.voice_character) {
+  // 期限切れは音声スキップ (TIME_KEYS に minutes_until がない場合も)
+  if (s.voicevox_enabled && s.voice_character && reminder.minutes_until >= 0) {
     playVoiceFile(s.voice_character, reminder.minutes_until);
   }
 }
@@ -88,13 +117,19 @@ export function playVoiceFile(character: string, minutes: number): void {
 function showReminderToast(reminder: ReminderEvent): void {
   document.querySelector(".reminder-toast")?.remove();
 
+  // minutes_until が負の場合は「N 分過ぎました」表示
+  const mu = reminder.minutes_until;
+  const subText = mu >= 0
+    ? `${mu}分前 ・ ${formatTime(reminder.scheduled_at)}`
+    : `${Math.abs(mu)}分過ぎました ・ ${formatTime(reminder.scheduled_at)}`;
+
   const toast = document.createElement("div");
   toast.className = "reminder-toast";
   toast.innerHTML = `
     <div class="reminder-toast-icon">&#x1F514;</div>
     <div class="reminder-toast-body">
       <div class="reminder-toast-title">${escapeHtml(reminder.title)}</div>
-      <div class="reminder-toast-sub">${reminder.minutes_until}分前 ・ ${formatTime(reminder.scheduled_at)}</div>
+      <div class="reminder-toast-sub">${subText}</div>
     </div>
     <button class="reminder-toast-close">&times;</button>
   `;

@@ -3,6 +3,9 @@ use tauri::State;
 
 use crate::db::DbState;
 
+/// remind_minutes_before に許容する上限 (24時間)
+const REMIND_MIN_MAX: i64 = 1440;
+
 /// 指定月のカレンダー表示用データ
 #[derive(Serialize)]
 pub struct MonthData {
@@ -54,11 +57,13 @@ pub fn get_month_data(
         None => vec![],
     };
 
+    // scheduled_at は "YYYY-MM-DD HH:MM" など秒なし形式も許容したいため、
+    // strftime ではなく substr で先頭 7 文字を比較する
     let mut evt_stmt = mira
         .prepare(
             "SELECT id, title, scheduled_at, remind_minutes_before
              FROM mira_scheduled_events
-             WHERE strftime('%Y-%m', scheduled_at) = ?1
+             WHERE substr(scheduled_at, 1, 7) = ?1
              ORDER BY scheduled_at",
         )
         .map_err(|e| e.to_string())?;
@@ -84,23 +89,53 @@ pub fn get_month_data(
     })
 }
 
-/// 予定イベントを 'reservation' 種別で追加する。
-/// notify_on_launch=1 を必ず立てるため、追加直後に Mira を再起動すれば起動バナーに即出る。
-/// reminded=0 で開始し、check_due_reminders が発火時刻に達したら 1 に更新する。
+/// 新しい予定イベントを追加し、挿入されたIDを返す
+///
+/// 仕様メモ (R2-M-1):
+///   週次繰り返し (recurrence_kind="weekly") は scheduled_at の曜日を 1 つだけ採用し、
+///   毎週その曜日 + 時刻に発火する。複数曜日指定 (例: 月水金) は現状未対応で、
+///   利用側は曜日ごとに別予定を登録する必要がある。
+///   将来 recurrence_weekdays カラムを追加する場合は migrations と
+///   startup.rs / reminder.rs の next_weekly_within_week / next_fire_today を
+///   合わせて更新すること。
 #[tauri::command]
 pub fn add_event(
     state: State<'_, DbState>,
     title: String,
     scheduled_at: String,
     remind_minutes_before: i64,
+    is_recurring: Option<bool>,
+    recurrence_kind: Option<String>,
 ) -> Result<i64, String> {
+    // scheduled_at を検証 (YYYY-MM-DD HH:MM[:SS] 形式を許容)
+    if chrono::NaiveDateTime::parse_from_str(&scheduled_at, "%Y-%m-%d %H:%M:%S").is_err()
+        && chrono::NaiveDateTime::parse_from_str(&scheduled_at, "%Y-%m-%d %H:%M").is_err()
+    {
+        return Err(format!("invalid scheduled_at format: {}", scheduled_at));
+    }
+
+    // remind_minutes_before は 0..=1440 に制限 (負値・極端値の混入を防止)
+    if remind_minutes_before < 0 || remind_minutes_before > REMIND_MIN_MAX {
+        return Err(format!(
+            "remind_minutes_before must be in 0..={}, got {}",
+            REMIND_MIN_MAX, remind_minutes_before
+        ));
+    }
+
     let mira = state.mira.lock().unwrap();
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let recurring_flag = is_recurring.unwrap_or(false);
+    let recurring_int: i64 = if recurring_flag { 1 } else { 0 };
+    let kind = if recurring_flag {
+        recurrence_kind.or_else(|| Some("weekly".to_string()))
+    } else {
+        None
+    };
 
     mira.execute(
-        "INSERT INTO mira_scheduled_events (event_type, title, scheduled_at, source, notify_on_launch, remind_minutes_before, reminded, created_at)
-         VALUES ('reservation', ?1, ?2, 'user', 1, ?3, 0, ?4)",
-        rusqlite::params![title, scheduled_at, remind_minutes_before, now],
+        "INSERT INTO mira_scheduled_events (event_type, title, scheduled_at, source, notify_on_launch, remind_minutes_before, reminded, is_recurring, recurrence_kind, created_at)
+         VALUES ('reservation', ?1, ?2, 'user', 1, ?3, 0, ?4, ?5, ?6)",
+        rusqlite::params![title, scheduled_at, remind_minutes_before, recurring_int, kind, now],
     )
     .map_err(|e| e.to_string())?;
 

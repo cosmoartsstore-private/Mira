@@ -4,12 +4,15 @@ use tauri::State;
 
 use crate::db::DbState;
 
-/// 起動時に表示する予定通知の最小情報
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct ScheduleNotification {
+    pub id: i64,
     pub title: String,
     pub scheduled_at: String,
     pub event_type: String,
+    /// dismiss 比較用の安定キー。
+    /// 非繰り返しは "<id>"、週次は "<id>_YYYY-MM-DD" (発火予定日)。
+    pub source_ref: String,
 }
 
 /// アプリ起動直後にフロントへ一括で返す初期状態
@@ -39,11 +42,20 @@ pub fn get_startup_info(state: State<'_, DbState>) -> Result<StartupInfo, String
         .unwrap_or_else(|_| "0".to_string())
         == "0";
 
-    // 今日〜1週間以内に発火予定の通知 (起動時バナー表示用)
-    let pending_notifications = get_pending_notifications(&mira);
+    // 古い dismiss レコードをGC (30日経過分)
+    let _ = mira.execute(
+        "DELETE FROM mira_dismissed_events WHERE dismissed_at < date('now','-30 days')",
+        [],
+    );
+
+    // Check pending schedule notifications for today/upcoming
+    let pending_notifications = query_pending_notifications(&mira);
 
     // 期 (Q1〜Q3) または年明け (annual) の振り返り未表示判定
     let pending_review = check_pending_review(&mira);
+
+    // onboarding 中はスナップショット/年間レビューを抑制し、未表示扱いを温存する
+    let pending_review = if onboarding_needed { None } else { pending_review };
 
     Ok(StartupInfo {
         stella_connected,
@@ -53,34 +65,173 @@ pub fn get_startup_info(state: State<'_, DbState>) -> Result<StartupInfo, String
     })
 }
 
-/// notify_on_launch=1 のうち今日〜+7 日に scheduled_at が入っているものを起動バナー用に返す
-fn get_pending_notifications(
+/// 起動時/予定変更時に表示する pending 通知を再取得する
+#[tauri::command]
+pub fn get_pending_notifications(state: State<'_, DbState>) -> Result<Vec<ScheduleNotification>, String> {
+    let mira = state.mira.lock().unwrap();
+    Ok(query_pending_notifications(&mira))
+}
+
+/// 起動通知を恒久的に dismiss する
+///
+/// source_ref は ScheduleNotification.source_ref をそのまま受け取り、
+/// 非繰り返し予定は "<id>"、週次予定は "<id>_YYYY-MM-DD" となる。
+#[tauri::command]
+pub fn dismiss_notification(state: State<'_, DbState>, source_ref: String) -> Result<(), String> {
+    let mira = state.mira.lock().unwrap();
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    mira.execute(
+        "INSERT OR REPLACE INTO mira_dismissed_events (source_ref, dismissed_at) VALUES (?1, ?2)",
+        rusqlite::params![source_ref, now],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// 起動通知レビューを既読としてマークする (snapshot_* / annual_* キー)
+#[tauri::command]
+pub fn mark_review_seen(state: State<'_, DbState>, key: String) -> Result<(), String> {
+    let mira = state.mira.lock().unwrap();
+    // key 例: "snapshot_2025-Q1" / "annual_2024"
+    if let Some(rest) = key.strip_prefix("snapshot_") {
+        mira.execute(
+            "INSERT OR REPLACE INTO mira_settings (key, value) VALUES ('last_snapshot_seen', ?1)",
+            [rest],
+        )
+        .map_err(|e| e.to_string())?;
+    } else if let Some(rest) = key.strip_prefix("annual_") {
+        mira.execute(
+            "INSERT OR REPLACE INTO mira_settings (key, value) VALUES ('last_annual_seen', ?1)",
+            [rest],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn query_pending_notifications(
     conn: &rusqlite::Connection,
 ) -> Vec<ScheduleNotification> {
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let week_later = (chrono::Local::now() + chrono::Duration::days(7))
+    let now = chrono::Local::now();
+    let today = now.format("%Y-%m-%d").to_string();
+    let week_later = (now + chrono::Duration::days(7))
         .format("%Y-%m-%d")
         .to_string();
 
-    let mut stmt = conn
-        .prepare(
-            "SELECT title, scheduled_at, event_type FROM mira_scheduled_events
-             WHERE notify_on_launch = 1
-               AND date(scheduled_at) BETWEEN ?1 AND ?2
-             ORDER BY scheduled_at",
-        )
-        .unwrap();
+    let mut result = Vec::new();
 
-    stmt.query_map([&today, &week_later], |row| {
-        Ok(ScheduleNotification {
-            title: row.get(0)?,
-            scheduled_at: row.get(1)?,
-            event_type: row.get(2)?,
-        })
-    })
-    .unwrap()
-    .filter_map(|r| r.ok())
-    .collect()
+    // 1) 通常の予定 (非繰り返し): source_ref = "<id>"
+    //    reminded=0 のものだけを対象とし、既に発火済みの予定は除外する
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT id, title, scheduled_at, event_type FROM mira_scheduled_events
+         WHERE notify_on_launch = 1
+           AND COALESCE(is_recurring, 0) = 0
+           AND COALESCE(reminded, 0) = 0
+           AND date(scheduled_at) BETWEEN ?1 AND ?2
+           AND CAST(id AS TEXT) NOT IN (SELECT source_ref FROM mira_dismissed_events)
+         ORDER BY scheduled_at",
+    ) {
+        if let Ok(iter) = stmt.query_map([&today, &week_later], |row| {
+            let id: i64 = row.get(0)?;
+            Ok(ScheduleNotification {
+                id,
+                title: row.get(1)?,
+                scheduled_at: row.get(2)?,
+                event_type: row.get(3)?,
+                source_ref: id.to_string(),
+            })
+        }) {
+            result.extend(iter.filter_map(|r| r.ok()));
+        }
+    }
+
+    // 2) 週次繰り返し予定: source_ref = "<id>_YYYY-MM-DD" (次回発火日)
+    if let Ok(mut stmt) = conn.prepare(
+        "SELECT id, title, scheduled_at, event_type FROM mira_scheduled_events
+         WHERE notify_on_launch = 1
+           AND COALESCE(is_recurring, 0) = 1
+           AND COALESCE(recurrence_kind, '') = 'weekly'",
+    ) {
+        // dismiss 済 source_ref を一度に取得して照合する
+        let dismissed: std::collections::HashSet<String> = conn
+            .prepare("SELECT source_ref FROM mira_dismissed_events")
+            .and_then(|mut s| {
+                s.query_map([], |row| row.get::<_, String>(0))
+                    .map(|it| it.filter_map(|r| r.ok()).collect())
+            })
+            .unwrap_or_default();
+
+        if let Ok(iter) = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        }) {
+            for (id, title, scheduled_at, event_type) in iter.filter_map(|r| r.ok()) {
+                if let Some(next) = next_weekly_within_week(&scheduled_at, &now) {
+                    let next_date = next.format("%Y-%m-%d").to_string();
+                    let source_ref = format!("{}_{}", id, next_date);
+                    if dismissed.contains(&source_ref) {
+                        continue;
+                    }
+                    result.push(ScheduleNotification {
+                        id,
+                        title,
+                        scheduled_at: next.format("%Y-%m-%d %H:%M:%S").to_string(),
+                        event_type,
+                        source_ref,
+                    });
+                }
+            }
+        }
+    }
+
+    result.sort_by(|a, b| a.scheduled_at.cmp(&b.scheduled_at));
+    result
+}
+
+/// scheduled_at の曜日/時刻を基点に、今から 7 日以内の次の発火日時を返す
+///
+/// scheduled_at が未来日 (まだ初回発火していない) の場合は、未来の base_date 自身が
+/// 最初の発火日となるのが正しく、今週内に同曜日があっても発火させない。
+fn next_weekly_within_week(
+    scheduled_at: &str,
+    now: &chrono::DateTime<chrono::Local>,
+) -> Option<chrono::DateTime<chrono::Local>> {
+    use chrono::TimeZone;
+    let date_part = scheduled_at.split([' ', 'T']).next()?;
+    let time_part = scheduled_at.split([' ', 'T']).nth(1)?;
+
+    let base_date = chrono::NaiveDate::parse_from_str(date_part, "%Y-%m-%d").ok()?;
+    let parts: Vec<&str> = time_part.split(':').collect();
+    let h: u32 = parts.first()?.parse().ok()?;
+    let m: u32 = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+    let s: u32 = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
+
+    let today = now.date_naive();
+    // base_date が未来日なら、まだ「初回」が来ていないので今週内の同曜日に前倒し発火させない
+    if base_date > today {
+        return None;
+    }
+
+    // base の曜日を現在以降最初の同曜日として見つける
+    let target_weekday = base_date.weekday();
+    for offset in 0..7i64 {
+        let cand = today + chrono::Duration::days(offset);
+        if cand.weekday() != target_weekday {
+            continue;
+        }
+        let naive = cand.and_hms_opt(h, m, s)?;
+        let dt = chrono::Local.from_local_datetime(&naive).single()?;
+        // 同じ日で時刻が過ぎている場合は今週未来 (今日以降) に限って採用しない、
+        // ただし "1時間以内の過去" は取りこぼし救済として含める
+        if (dt - *now).num_minutes() >= -60 {
+            return Some(dt);
+        }
+    }
+    None
 }
 
 /// 振り返り演出 (snapshot / annual) を出すべきかを判定し、トリガキーを返す。
@@ -92,12 +243,12 @@ fn get_pending_notifications(
 /// - 1-3 月の snapshot は前年 Q4 だが現状未対応なので None
 fn check_pending_review(conn: &rusqlite::Connection) -> Option<String> {
     let now = chrono::Local::now();
-    let year = now.format("%Y").to_string();
     let month = now.month();
+    let current_year = now.year();
 
     // 1 月だけは前年 annual を未読なら出す
     if month == 1 {
-        let prev_year = (now.year() - 1).to_string();
+        let prev_year = (current_year - 1).to_string();
         let last_seen: String = conn
             .query_row(
                 "SELECT value FROM mira_settings WHERE key = 'last_annual_seen'",
@@ -111,11 +262,12 @@ fn check_pending_review(conn: &rusqlite::Connection) -> Option<String> {
         }
     }
 
-    // 期境界の翌月以降に Q1/Q2/Q3 サマリを表示する (Q1 は 4 月から表示、など)
+    // Snapshot: Q1 start=Apr, Q2 start=Jul, Q3 start=Oct, Q4 start=Jan (前年のQ4扱い)
     let quarter_key = match month {
-        4..=6 => Some(format!("{}-Q1", year)),
-        7..=9 => Some(format!("{}-Q2", year)),
-        10..=12 => Some(format!("{}-Q3", year)),
+        1..=3 => Some(format!("{}-Q4", current_year - 1)),
+        4..=6 => Some(format!("{}-Q1", current_year)),
+        7..=9 => Some(format!("{}-Q2", current_year)),
+        10..=12 => Some(format!("{}-Q3", current_year)),
         _ => None,
     };
 

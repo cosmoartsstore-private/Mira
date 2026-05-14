@@ -7,25 +7,44 @@ export interface Holiday {
   name: string;
 }
 
-// 指定年月の祝日一覧を「日にち昇順」で返す。
-// 計算の順序が重要: 固定 → ハッピーマンデー → 春分/秋分 → 振替休日 → 国民の休日。
-// 振替/国民の休日は他の祝日の存在を前提にするため後段で計算する。
-export function getJapaneseHolidays(year: number, month: number): Holiday[] {
-  const holidays: Holiday[] = [];
-
-  // 毎年同じ日付の祝日。山の日(2016~)・建国記念の日 など現在の暦に合わせている。
-  const fixed: Record<string, string> = {
+// 固定祝日マップを年に応じて返す
+//
+// R2-M-20: 天皇誕生日 (2019 改正で 12/23 -> 2/23) や即位日など年依存の祝日に対応。
+// 簡略化のため細かい祝日 (即位礼正殿の儀 2019/10/22 など単年限定) は省略している。
+function getFixedHolidays(year: number): Record<string, string> {
+  const map: Record<string, string> = {
     "1-1": "元日",
     "2-11": "建国記念の日",
-    "2-23": "天皇誕生日",
     "4-29": "昭和の日",
     "5-3": "憲法記念日",
     "5-4": "みどりの日",
     "5-5": "こどもの日",
-    "8-11": "山の日",
     "11-3": "文化の日",
     "11-23": "勤労感謝の日",
   };
+
+  // 山の日: 2016 年に新設
+  if (year >= 2016) {
+    map["8-11"] = "山の日";
+  }
+
+  // 天皇誕生日:
+  // - 1989-2018: 12/23 (平成)
+  // - 2019: なし (改元年)
+  // - 2020-: 2/23 (令和)
+  if (year >= 1989 && year <= 2018) {
+    map["12-23"] = "天皇誕生日";
+  } else if (year >= 2020) {
+    map["2-23"] = "天皇誕生日";
+  }
+
+  return map;
+}
+
+export function getJapaneseHolidays(year: number, month: number): Holiday[] {
+  const holidays: Holiday[] = [];
+
+  const fixed = getFixedHolidays(year);
 
   const key = `${month}-`;
   for (const [k, name] of Object.entries(fixed)) {
@@ -41,7 +60,7 @@ export function getJapaneseHolidays(year: number, month: number): Holiday[] {
   if (month === 9) holidays.push({ day: nthMonday(year, 9, 3), name: "敬老の日" });
   if (month === 10) holidays.push({ day: nthMonday(year, 10, 2), name: "スポーツの日" });
 
-  // 春分/秋分は天文計算による近似式（1980~2099 でほぼ正確）
+  // Equinox days (approximate, year-range aware)
   if (month === 3) holidays.push({ day: vernalEquinox(year), name: "春分の日" });
   if (month === 9) holidays.push({ day: autumnalEquinox(year), name: "秋分の日" });
 
@@ -59,8 +78,11 @@ export function getJapaneseHolidays(year: number, month: number): Holiday[] {
   }
   holidays.push(...substitutes);
 
-  // 国民の休日: 前後を祝日に挟まれた平日は休みになる（例: 9月のシルバーウィーク）。
-  // 月初/月末は端の祝日が見えないので除外、土日は元々休みなので対象外。
+  // Sandwich rule: a weekday between two holidays becomes 国民の休日
+  //
+  // R2-M-21: 当該月内で完結する判定のみ実装。月末/月初の境界跨ぎ
+  // (例: 30日と翌月1日が祝日のときの月末の平日) は計算対象外で、
+  // 厳密対応には呼び出し側で前後月の祝日を渡す API 化が必要。
   const allDays = new Set(holidays.map((h) => h.day));
   const daysInMonth = new Date(year, month, 0).getDate();
   for (let d = 2; d < daysInMonth; d++) {
@@ -86,12 +108,34 @@ function nthMonday(year: number, month: number, n: number): number {
   return firstMonday + (n - 1) * 7;
 }
 
-// 春分の日の近似式（国立天文台ベース、1980 基準）。整数日に丸めて返す。
+// 春分の日 (国立天文台の近似式を年範囲で切替)
+//
+// R2-M-19: 1980-2099 の係数のみだと 2100+ で 1 日ずれることがあるため、
+// 海上保安庁/国立天文台の係数を年範囲ごとに切替えて精度を補正する。
 function vernalEquinox(year: number): number {
+  if (year >= 1900 && year <= 1979) {
+    return Math.floor(20.8357 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+  }
+  if (year >= 1980 && year <= 2099) {
+    return Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+  }
+  if (year >= 2100 && year <= 2199) {
+    return Math.floor(21.851 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+  }
+  // 範囲外は安全側で 1980-2099 の式
   return Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
 }
 
-// 秋分の日の近似式（国立天文台ベース、1980 基準）
+// 秋分の日 (同上, 年範囲対応)
 function autumnalEquinox(year: number): number {
+  if (year >= 1900 && year <= 1979) {
+    return Math.floor(23.2588 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+  }
+  if (year >= 1980 && year <= 2099) {
+    return Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+  }
+  if (year >= 2100 && year <= 2199) {
+    return Math.floor(24.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+  }
   return Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
 }

@@ -55,6 +55,9 @@ pub fn run() {
         .manage(db_state)
         .invoke_handler(tauri::generate_handler![
             commands::startup::get_startup_info,
+            commands::startup::get_pending_notifications,
+            commands::startup::dismiss_notification,
+            commands::startup::mark_review_seen,
             commands::journal::get_week_lane_data,
             commands::journal::get_day_focus_data,
             commands::journal::save_day_memo,
@@ -65,10 +68,12 @@ pub fn run() {
             commands::calendar::remove_event,
             commands::settings::get_settings,
             commands::settings::set_setting,
+            commands::settings::set_view_hour_range,
             commands::settings::get_favorite_users,
             commands::settings::add_favorite_user,
             commands::settings::remove_favorite_user,
             commands::reminder::check_due_reminders,
+            commands::snapshot::get_snapshot_summary,
             commands::stella::check_stellarecord_available,
             commands::stella::register_to_stellarecord,
             commands::stella::unregister_from_stellarecord,

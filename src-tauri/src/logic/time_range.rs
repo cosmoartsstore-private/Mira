@@ -11,10 +11,12 @@ use rusqlite::Connection;
 /// p95 が p5 を下回るのは「日付を跨いで遊んでいる」ケースで、+24 して翌日の時刻として扱う。
 /// hour_end は `26` のように 24 を越え得る (HomePage 側で displayHour = h - 24 で 0..23 に丸める)。
 pub fn detect_activity_range(conn: &Connection) -> (u8, u8) {
+    // R2-M-10: visits.join_time は UTC で格納されている可能性が高いため、
+    // 'localtime' 修飾子を付けてローカル時刻の時間帯で集計する。
     let mut stmt = match conn.prepare(
-        "SELECT CAST(strftime('%H', join_time) AS INTEGER) AS hour
+        "SELECT CAST(strftime('%H', join_time, 'localtime') AS INTEGER) AS hour
          FROM visits
-         WHERE join_time >= date('now', '-30 days')",
+         WHERE join_time >= date('now', '-30 days', 'localtime')",
     ) {
         Ok(s) => s,
         Err(_) => return (12, 26),
