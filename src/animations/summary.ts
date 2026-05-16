@@ -33,7 +33,11 @@ function getSeason(month: number): Season {
 
 // 季節に応じた花弁/葉/雪が舞う四半期サマリー演出を表示する。
 // overrideMonth は DebugPage 等から任意季節をテスト再生するためのもの。
+// 既に overlay が存在する場合は二重再生しない。
 export function playSummaryAnimation(overrideMonth?: number): void {
+  // 多重発火防止 (Debug ページからの連打や同時呼び出しで overlay が重なるのを防ぐ)
+  if (document.querySelector(".summary-overlay")) return;
+
   const month = overrideMonth ?? new Date().getMonth() + 1;
   const season = getSeason(month);
 

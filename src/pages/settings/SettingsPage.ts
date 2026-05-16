@@ -1,5 +1,6 @@
 import { settings, stellaConnected, Subscriptions } from "../../state/store";
 import { setSetting, setViewHourRange, getSettings, unregisterFromStellarecord } from "../../api/commands";
+import { showToast } from "../../utils/toast";
 import { playVoiceFile } from "../../services/reminder";
 
 // 設定画面。フォント・通知音・VOICEVOX 話者を変更すると DB + ストア双方を即時更新する。
@@ -88,10 +89,16 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
   reminderSection.appendChild(charRow);
 
   charSelect.addEventListener("change", async () => {
+    const prev = settings.get().voice_character || "metan";
+    const next = charSelect.value;
     try {
-      await setSetting("voice_character", charSelect.value);
+      await setSetting("voice_character", next);
       await refreshSettings();
-    } catch { /* */ }
+    } catch (err) {
+      // 保存失敗時は select の表示を元に戻す
+      charSelect.value = prev;
+      showToast({ title: "話者設定の保存に失敗しました", body: String(err), kind: "error" });
+    }
   });
 
   testBtn.addEventListener("click", () => {
@@ -100,8 +107,8 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
 
   container.appendChild(reminderSection);
 
-  // STELLARecord 連携
-  const integrationSection = createSection("STELLARecord 連携");
+  // StellaRecord 連携
+  const integrationSection = createSection("StellaRecord 連携");
   const integrationRow = document.createElement("div");
   integrationRow.className = "setting-row";
   integrationRow.innerHTML = `<span class="label">連携状態</span>`;
@@ -112,13 +119,15 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
   unregisterBtn.className = "toggle-btn";
   unregisterBtn.textContent = "連携を解除";
   unregisterBtn.addEventListener("click", async () => {
-    const ok = await confirmDialog("STELLARecord との連携を解除しますか？");
+    const ok = await confirmDialog("StellaRecord との連携を解除しますか？");
     if (!ok) return;
     try {
       await unregisterFromStellarecord();
       stellaConnected.set(false);
       integrationStatus.textContent = "未接続";
-    } catch { /* */ }
+    } catch (err) {
+      showToast({ title: "連携解除に失敗しました", body: String(err), kind: "error" });
+    }
   });
   const integrationWrap = document.createElement("div");
   integrationWrap.className = "integration-wrap";
@@ -217,10 +226,14 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
   // Event handlers
   const fontSelect = container.querySelector("#font-select") as HTMLSelectElement;
   fontSelect.addEventListener("change", async () => {
+    const prev = settings.get().font_family || "Yomogi";
     try {
       await setSetting("font_family", fontSelect.value);
       await refreshSettings();
-    } catch { /* */ }
+    } catch (err) {
+      fontSelect.value = prev;
+      showToast({ title: "書体設定の保存に失敗しました", body: String(err), kind: "error" });
+    }
   });
 
   // number input rows
@@ -268,38 +281,39 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
     });
   });
 
-  container.querySelectorAll("[data-toggle-group]").forEach((group) => {
-    const buttons = group.querySelectorAll(".toggle-btn");
-    buttons.forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const key = group.getAttribute("data-toggle-group")!;
-        const value = (btn as HTMLElement).dataset.value!;
-        buttons.forEach((b) => b.classList.remove("on"));
-        btn.classList.add("on");
-        try {
-          await setSetting(key, value);
-          await refreshSettings();
-        } catch { /* */ }
+  // トグル系設定: 楽観的に UI を更新 → 保存失敗時に元の選択へロールバック + toast 通知
+  const wireToggleGroup = (selector: string, attrName: string) => {
+    container.querySelectorAll(selector).forEach((group) => {
+      const buttons = Array.from(group.querySelectorAll<HTMLElement>(".toggle-btn"));
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const key = group.getAttribute(attrName)!;
+          const value = btn.dataset.value!;
+          // 直前の選択 (.on) を覚えておき、失敗時に戻す
+          const prevOn = buttons.find((b) => b.classList.contains("on"));
+          if (prevOn === btn) return; // 同値クリックは何もしない
+          buttons.forEach((b) => b.classList.remove("on"));
+          btn.classList.add("on");
+          try {
+            await setSetting(key, value);
+            await refreshSettings();
+          } catch (err) {
+            // ロールバック: 元の .on を復元
+            buttons.forEach((b) => b.classList.remove("on"));
+            if (prevOn) prevOn.classList.add("on");
+            showToast({
+              title: "設定の保存に失敗しました",
+              body: String(err),
+              kind: "error",
+            });
+          }
+        });
       });
     });
-  });
+  };
 
-
-  container.querySelectorAll("[data-bool-toggle]").forEach((group) => {
-    const buttons = group.querySelectorAll(".toggle-btn");
-    buttons.forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const key = group.getAttribute("data-bool-toggle")!;
-        const value = (btn as HTMLElement).dataset.value!;
-        buttons.forEach((b) => b.classList.remove("on"));
-        btn.classList.add("on");
-        try {
-          await setSetting(key, value);
-          await refreshSettings();
-        } catch { /* */ }
-      });
-    });
-  });
+  wireToggleGroup("[data-toggle-group]", "data-toggle-group");
+  wireToggleGroup("[data-bool-toggle]", "data-bool-toggle");
 
   return container;
 }

@@ -1,4 +1,6 @@
 import { getWeekLaneData, getDayFocusData, saveDayMemo, addManualMarker, removeManualMarker, getStartupInfo } from "../../api/commands";
+import { showToast } from "../../utils/toast";
+import { escapeHtml, escapeHtml as esc } from "../../utils/html";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { currentWeekStart, focusedDate, stellaConnected, settings, notifications, getMonday, Subscriptions } from "../../state/store";
 import type { WeekLaneData, DayFocusData, MarkerSpan, ManualMarker, PhotoEntry, VisitPlayer } from "../../state/types";
@@ -16,8 +18,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-icon">✦</div>
-        <p class="empty-state-message">STELLARecord との接続を確認しています…</p>
-        <p class="empty-state-hint">STELLARecord がインストールされていることを確認してください。</p>
+        <p class="empty-state-message">StellaRecord との接続を確認しています…</p>
+        <p class="empty-state-hint">StellaRecord がインストールされていることを確認してください。</p>
         <button class="empty-state-retry">再接続</button>
       </div>
     `;
@@ -415,7 +417,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       memoSaveTimeout = undefined;
       if (pendingMemoSave) {
         const { date, getValue } = pendingMemoSave;
-        saveDayMemo(date, getValue()).catch(() => {});
+        saveDayMemo(date, getValue()).catch((e) => {
+          showToast({ title: "メモの保存に失敗しました", body: String(e), kind: "error" });
+        });
         pendingMemoSave = null;
       }
     }
@@ -433,8 +437,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       pendingMemoSave = null;
       try {
         await saveDayMemo(date, getValue());
-      } catch {
-        // 保存失敗は致命ではないので握り潰す
+      } catch (e) {
+        showToast({ title: "メモの保存に失敗しました", body: String(e), kind: "error" });
       }
     }
   }
@@ -450,7 +454,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       renderMemo(data);
     } catch (e) {
       if (gen !== memoGen) return;
-      memoInner.innerHTML = `<div class="memo-empty">${e}</div>`;
+      memoInner.innerHTML = `<div class="memo-empty">メモの読み込みに失敗しました: ${escapeHtml(String(e))}</div>`;
     }
   }
 
@@ -512,7 +516,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       clearTimeout(memoSaveTimeout);
       pendingMemoSave = { date: data.date, getValue: () => textarea.value };
       memoSaveTimeout = window.setTimeout(() => {
-        saveDayMemo(data.date, textarea.value).catch(() => {});
+        saveDayMemo(data.date, textarea.value).catch((e) => {
+          showToast({ title: "メモの保存に失敗しました", body: String(e), kind: "error" });
+        });
         pendingMemoSave = null;
         memoSaveTimeout = undefined;
       }, 1000);
@@ -747,11 +753,13 @@ export function HomePage(subs: Subscriptions): HTMLElement {
         item.textContent = c.label;
         item.addEventListener("click", async () => {
           menu.remove();
-          const id = await addManualMarker(data.date, offsets.start, offsets.end, c.key).catch(() => null);
-          if (id !== null) {
+          try {
+            const id = await addManualMarker(data.date, offsets.start, offsets.end, c.key);
             data.manual_markers.push({ id, start: offsets.start, end: offsets.end, color: c.key });
             renderMarkerText(markerView, fullText, data.memo_markers, data.manual_markers);
             wireMarkerContextMenu(markerView, data);
+          } catch (err) {
+            showToast({ title: "マーカーの追加に失敗しました", body: String(err), kind: "error" });
           }
         });
         menu.appendChild(item);
@@ -911,7 +919,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       clearTimeout(memoSaveTimeout);
       pendingMemoSave = { date: data.date, getValue: () => textarea.value };
       memoSaveTimeout = window.setTimeout(() => {
-        saveDayMemo(data.date, textarea.value).catch(() => {});
+        saveDayMemo(data.date, textarea.value).catch((e) => {
+          showToast({ title: "メモの保存に失敗しました", body: String(e), kind: "error" });
+        });
         pendingMemoSave = null;
         memoSaveTimeout = undefined;
       }, 1000);
@@ -1095,6 +1105,3 @@ function parseNotifHour(isoStr: string): number {
 }
 
 // innerHTML / title 属性に流す前の HTML 特殊文字エスケープ (& < > " を実体参照化)
-function esc(str: string): string {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}

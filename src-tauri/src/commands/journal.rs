@@ -61,7 +61,6 @@ pub struct WeekLaneData {
 pub struct PersonChip {
     pub user_id: String,
     pub display_name: String,
-    pub is_favorite: bool,
     pub co_visit_count: u32,
 }
 
@@ -106,7 +105,6 @@ pub struct DayFocusData {
     pub memo_markers: Vec<MarkerSpan>,
     pub manual_markers: Vec<ManualMarker>,
     pub memokitto: Vec<memokitto::MemokittoChip>,
-    pub has_update: bool,
 }
 
 /// `week_start` (日曜日, YYYY-MM-DD) から 7 日分のレーンデータを返す。
@@ -121,7 +119,7 @@ pub fn get_week_lane_data(
 
     let stella = stella_guard
         .as_ref()
-        .ok_or_else(|| "STELLARecord not connected".to_string())?;
+        .ok_or_else(|| "StellaRecord not connected".to_string())?;
 
     let start_date =
         chrono::NaiveDate::parse_from_str(&week_start, "%Y-%m-%d").map_err(|e| e.to_string())?;
@@ -163,14 +161,14 @@ pub fn get_day_focus_data(state: State<'_, DbState>, date: String) -> Result<Day
 
     let stella = stella_guard
         .as_ref()
-        .ok_or_else(|| "STELLARecord not connected".to_string())?;
+        .ok_or_else(|| "StellaRecord not connected".to_string())?;
 
     let mut visits = query_visits_for_date(stella, &mira, &date)?;
     let total_duration_min: u32 = visits.iter().map(|v| v.duration_min).sum();
 
     attach_players_to_visits(stella, &date, &mut visits);
 
-    let people = query_people_for_date(stella, &mira, &date)?;
+    let people = query_people_for_date(stella, &date)?;
     let people_count = people.len() as u32;
 
     let photos = query_photos_for_date(stella, &date)?;
@@ -230,7 +228,6 @@ pub fn get_day_focus_data(state: State<'_, DbState>, date: String) -> Result<Day
         memo_markers,
         manual_markers,
         memokitto: memokitto_chips,
-        has_update: false,
     })
 }
 
@@ -432,7 +429,6 @@ fn query_visits_for_date(
 // 指定日に同席した自分以外のユーザーを共訪問回数の多い順で返す。お気に入りフラグは Mira DB を別途参照。
 fn query_people_for_date(
     stella: &rusqlite::Connection,
-    mira: &rusqlite::Connection,
     date: &str,
 ) -> Result<Vec<PersonChip>, String> {
     let mut stmt = stella
@@ -449,29 +445,14 @@ fn query_people_for_date(
 
     let people = stmt
         .query_map([date], |row| {
-            let user_id: String = row.get(0)?;
-            let display_name: String = row.get(1)?;
-            let co_visit_count: u32 = row.get(2)?;
-            Ok((user_id, display_name, co_visit_count))
+            Ok(PersonChip {
+                user_id: row.get(0)?,
+                display_name: row.get(1)?,
+                co_visit_count: row.get(2)?,
+            })
         })
         .map_err(|e| e.to_string())?
         .filter_map(std::result::Result::ok)
-        .map(|(user_id, display_name, co_visit_count)| {
-            let is_favorite = mira
-                .query_row(
-                    "SELECT 1 FROM mira_favorite_users WHERE user_id = ?1",
-                    [&user_id],
-                    |_| Ok(()),
-                )
-                .is_ok();
-
-            PersonChip {
-                user_id,
-                display_name,
-                is_favorite,
-                co_visit_count,
-            }
-        })
         .collect();
 
     Ok(people)

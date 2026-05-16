@@ -122,15 +122,38 @@ pub fn add_event(
         ));
     }
 
-    let mira = crate::db::lock_mira(&state)?;
-    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    // recurrence_kind は現状 `weekly` のみサポート (R2-M-1 参照)。それ以外は明確に弾く
+    // ことで将来の文字列ドリフトを防ぐ。
     let recurring_flag = is_recurring.unwrap_or(false);
-    let recurring_int: i64 = i64::from(recurring_flag);
     let kind = if recurring_flag {
-        recurrence_kind.or_else(|| Some("weekly".to_string()))
+        let value = recurrence_kind.unwrap_or_else(|| "weekly".to_string());
+        if value != "weekly" {
+            return Err(format!(
+                "unsupported recurrence_kind: {value} (現状は \"weekly\" のみ対応)"
+            ));
+        }
+        Some(value)
     } else {
         None
     };
+
+    let mira = crate::db::lock_mira(&state)?;
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let recurring_int: i64 = i64::from(recurring_flag);
+
+    // 重複防止: 同じ (title, scheduled_at) の予定が既に存在すればエラー (UI 連打対策)
+    let dup_count: i64 = mira
+        .query_row(
+            "SELECT COUNT(*) FROM mira_scheduled_events WHERE title = ?1 AND scheduled_at = ?2",
+            rusqlite::params![title, scheduled_at],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    if dup_count > 0 {
+        return Err(format!(
+            "同名同時刻の予定が既に登録されています: {title} @ {scheduled_at}"
+        ));
+    }
 
     mira.execute(
         "INSERT INTO mira_scheduled_events (event_type, title, scheduled_at, source, notify_on_launch, remind_minutes_before, reminded, is_recurring, recurrence_kind, created_at)

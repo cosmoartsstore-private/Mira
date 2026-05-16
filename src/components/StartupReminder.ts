@@ -1,5 +1,7 @@
 import type { ScheduleNotification } from "../state/types";
 import { dismissNotification } from "../api/commands";
+import { escapeHtml as escHtml } from "../utils/html";
+import { formatTime as formatNotifTime } from "../utils/datetime";
 
 export function showStartupReminder(notifs: ScheduleNotification[]): void {
   if (notifs.length === 0) return;
@@ -49,17 +51,3 @@ export function showStartupReminder(notifs: ScheduleNotification[]): void {
   }
 }
 
-// ISO/SQL 日時文字列から "H:MM" を抽出する
-function formatNotifTime(isoStr: string): string {
-  try {
-    const d = new Date(isoStr);
-    return `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
-  } catch {
-    return "";
-  }
-}
-
-// innerHTML に流す前の HTML 特殊文字エスケープ
-function escHtml(str: string): string {
-  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}

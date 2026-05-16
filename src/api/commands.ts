@@ -78,17 +78,17 @@ export async function checkDueReminders(): Promise<ReminderEvent[]> {
   return invoke("check_due_reminders");
 }
 
-// STELLARecord DB ファイルの存在を確認する（未インストール検出用）
+// StellaRecord DB ファイルの存在を確認する（未インストール検出用）
 export async function checkStellarecordAvailable(): Promise<boolean> {
   return invoke("check_stellarecord_available");
 }
 
-// STELLARecord に Mira を fastparty アプリとして登録する
+// StellaRecord に Mira を fastparty アプリとして登録する
 export async function registerToStellarecord(): Promise<string> {
   return invoke("register_to_stellarecord");
 }
 
-// STELLARecordからMiraを登録解除する
+// StellaRecordからMiraを登録解除する
 export async function unregisterFromStellarecord(): Promise<string> {
   return invoke("unregister_from_stellarecord");
 }

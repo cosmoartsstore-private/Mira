@@ -9,6 +9,7 @@ import { playTransition } from "./animations/transition";
 import { showStartupReminder } from "./components/StartupReminder";
 import { showSnapshotModal } from "./components/SnapshotModal";
 import { startReminderService } from "./services/reminder";
+import { escapeHtml } from "./utils/html";
 import type { TabId } from "./state/types";
 
 // アプリの起動シーケンス: ナビ・ページコンテナを構築 → 起動情報・設定取得 → 初期ページ mount。
@@ -171,10 +172,6 @@ function showReviewToast(key: string): void {
 
   document.body.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add("visible"));
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 // タブ遷移時のスライドカバーを overlay 層に1枚だけ仕込む（playTransition が使い回す）

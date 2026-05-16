@@ -6,6 +6,8 @@ import { checkDueReminders } from "../api/commands";
 import { settings } from "../state/store";
 import type { ReminderEvent } from "../state/types";
 import notifyChimeUrl from "../assets/sounds/notify-chime.mp3";
+import { escapeHtml } from "../utils/html";
+import { formatTime } from "../utils/datetime";
 
 // 話者ボイスファイル群を Vite で事前読込し、URL 文字列の辞書として持つ
 const voiceFiles = import.meta.glob("../assets/voices/*.wav", { eager: true, query: "?url", import: "default" }) as Record<string, string>;
@@ -149,17 +151,3 @@ function dismiss(toast: HTMLElement): void {
   setTimeout(() => toast.remove(), 400);
 }
 
-// ISO/SQL 日時文字列から "H:MM" を抽出する。失敗時は空文字。
-function formatTime(isoStr: string): string {
-  try {
-    const d = new Date(isoStr);
-    return `${d.getHours()}:${d.getMinutes().toString().padStart(2, "0")}`;
-  } catch {
-    return "";
-  }
-}
-
-// innerHTML に流す前の HTML 特殊文字エスケープ
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}

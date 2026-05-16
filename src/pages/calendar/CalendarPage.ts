@@ -1,6 +1,9 @@
 import { getMonthData, addEvent, removeEvent, refreshNotifications } from "../../api/commands";
 import { currentMonth, activeTab, currentWeekStart, focusedDate, notifications, Subscriptions } from "../../state/store";
 import { getJapaneseHolidays } from "../../utils/holidays";
+import { confirmDialog } from "../../utils/confirmDialog";
+import { showToast } from "../../utils/toast";
+import { escapeHtml as esc } from "../../utils/html";
 import type { CalendarEvent } from "../../state/types";
 
 // 月別カレンダー。月内のアクティブ日 (訪問あり) と祝日・予定を表示する。
@@ -240,7 +243,9 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
         popup.remove();
         await loadMonth();
         await refreshNotificationsStore();
-      } catch { /* */ }
+      } catch (err) {
+        showToast({ title: "予定の追加に失敗しました", body: String(err), kind: "error" });
+      }
     });
 
     input.addEventListener("keydown", (e) => {
@@ -280,12 +285,16 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
 
     popup.querySelector(".cal-popup-delete")!.addEventListener("click", async (e) => {
       e.stopPropagation();
+      const ok = await confirmDialog(`予定「${evt.title}」を削除しますか？`);
+      if (!ok) return;
       try {
         await removeEvent(evt.id);
         popup.remove();
         await loadMonth();
         await refreshNotificationsStore();
-      } catch { /* */ }
+      } catch (err) {
+        showToast({ title: "予定の削除に失敗しました", body: String(err), kind: "error" });
+      }
     });
 
     popup.addEventListener("click", (e) => e.stopPropagation());
@@ -327,7 +336,3 @@ function shiftMonth(offset: number): void {
   currentMonth.set({ year: newYear, month: newMonth });
 }
 
-// innerHTML に流す前の HTML 特殊文字エスケープ（タイトル表示用）
-function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}

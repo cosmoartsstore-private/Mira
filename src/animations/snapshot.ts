@@ -36,7 +36,11 @@ function wait(ms: number): Promise<void> {
 
 // 季節サマリーの封筒開封演出を1回再生する。引数省略時は現在月から季節を推定し、
 // stats も "—" で初期化する（DebugPage 等のテスト再生にも使える）。
+// 既に演出が走っている (stage が DOM に存在) 場合は二重再生しない。
 export function playSnapshot(data?: SnapshotData): void {
+  // 多重発火防止: 直前に開かれた stage がまだ残っているなら何もしない (連打対策)
+  if (document.querySelector(".env-stage")) return;
+
   const season = data?.season ?? getCurrentSeason();
   const greeting = data?.greeting ?? "この四半期のあなたの記録が、ここに集まりました。";
   const stats = data?.stats ?? [

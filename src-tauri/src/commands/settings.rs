@@ -1,6 +1,5 @@
 //! アプリ全体設定の Tauri コマンド群。`mira_settings` テーブル (key/value 形式) を介して
 //! フォント / 表示 / メモ上限 / リマインダー音声等の設定を読み書きする。
-//! お気に入りユーザー (`mira_favorite_users`) の CRUD も同モジュールで扱う。
 
 use serde::Serialize;
 use tauri::State;
@@ -26,15 +25,34 @@ pub struct MiraSettings {
     pub view_hour_end: u32,
 }
 
-/// お気に入り登録されたユーザー情報
-#[derive(Serialize)]
-pub struct FavoriteUser {
-    pub user_id: String,
-    pub display_name: String,
-    pub nickname: Option<String>,
-    pub line_color: Option<String>,
-    pub note: Option<String>,
-}
+/// `set_setting` で受け入れる既知キーの一覧。
+/// allowlist 化することでタイポしたキーや未定義の予約キーが DB に溜まるのを防ぐ。
+/// 新規キーを追加するときはここと [`get_settings`] / [`crate::db::migrations`] の defaults を揃える。
+const ALLOWED_SETTING_KEYS: &[&str] = &[
+    "font_family",
+    "font_scope",
+    "memo_max_length",
+    "transition_enabled",
+    "snapshot_enabled",
+    "onboarding_completed",
+    "voicevox_enabled",
+    "voice_character",
+    "reminder_sound_enabled",
+    "view_hour_start",
+    "view_hour_end",
+    "last_snapshot_seen",
+    "last_annual_seen",
+    "remind_minutes_before_default",
+];
+
+/// 真偽値として解釈する設定キー (値域 `"0"` / `"1"` のみ許容)
+const BOOL_SETTING_KEYS: &[&str] = &[
+    "transition_enabled",
+    "snapshot_enabled",
+    "onboarding_completed",
+    "voicevox_enabled",
+    "reminder_sound_enabled",
+];
 
 /// `mira_settings` から `MiraSettings` 構造体を組み立てて返す。
 /// 「1" → true、それ以外 → false」のルールで真偽値を解釈。
@@ -69,9 +87,19 @@ pub fn get_settings(state: State<'_, DbState>) -> Result<MiraSettings, String> {
 }
 
 /// 任意の設定キーに値を upsert する。bool は呼出側で "1"/"0" 文字列に揃える前提。
+/// `ALLOWED_SETTING_KEYS` 外のキーは弾き、bool キーは値域も検証する。
 #[tauri::command]
 pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Result<(), String> {
     let mira = crate::db::lock_mira(&state)?;
+
+    if !ALLOWED_SETTING_KEYS.contains(&key.as_str()) {
+        return Err(format!("unknown setting key: {key}"));
+    }
+
+    // bool キーは "0" / "1" のみ許容
+    if BOOL_SETTING_KEYS.contains(&key.as_str()) && value != "0" && value != "1" {
+        return Err(format!("invalid bool value for {key}: {value}"));
+    }
 
     // view_hour_start / view_hour_end は範囲と前後関係を検証する
     if key == "view_hour_start" || key == "view_hour_end" {
@@ -107,6 +135,16 @@ pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Res
             return Err(format!(
                 "view_hour_start ({start}) must be less than view_hour_end ({end})"
             ));
+        }
+    }
+
+    // memo_max_length は 1..=100000 に制限 (極端値・負値・非数を拒否)
+    if key == "memo_max_length" {
+        let parsed: u32 = value
+            .parse()
+            .map_err(|_| format!("invalid {key} value: {value}"))?;
+        if !(1..=100_000).contains(&parsed) {
+            return Err(format!("{key} must be in 1..=100000, got {parsed}"));
         }
     }
 
@@ -167,87 +205,5 @@ pub fn set_view_hour_range(
     )
     .map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-/// お気に入りユーザー一覧をSTELLAの表示名付きで取得する
-#[tauri::command]
-pub fn get_favorite_users(state: State<'_, DbState>) -> Result<Vec<FavoriteUser>, String> {
-    // デッドロック回避のためロック順を stella → mira に統一
-    let stella_guard = crate::db::lock_stella(&state)?;
-    let mira = crate::db::lock_mira(&state)?;
-
-    let mut stmt = mira
-        .prepare("SELECT user_id, nickname, line_color, note FROM mira_favorite_users ORDER BY added_at")
-        .map_err(|e| e.to_string())?;
-
-    let favorites: Vec<FavoriteUser> = stmt
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, Option<String>>(1)?,
-                row.get::<_, Option<String>>(2)?,
-                row.get::<_, Option<String>>(3)?,
-            ))
-        })
-        .map_err(|e| e.to_string())?
-        .filter_map(std::result::Result::ok)
-        .map(|(user_id, nickname, line_color, note)| {
-            let display_name = stella_guard
-                .as_ref()
-                .and_then(|s| {
-                    s.query_row(
-                        "SELECT display_name FROM players WHERE user_id = ?1",
-                        [&user_id],
-                        |row| row.get(0),
-                    )
-                    .ok()
-                })
-                .unwrap_or_else(|| user_id.clone());
-
-            FavoriteUser {
-                user_id,
-                display_name,
-                nickname,
-                line_color,
-                note,
-            }
-        })
-        .collect();
-
-    Ok(favorites)
-}
-
-/// お気に入りユーザーを upsert する (INSERT OR REPLACE のため `nickname/line_color/note` も上書き)
-#[tauri::command]
-pub fn add_favorite_user(
-    state: State<'_, DbState>,
-    user_id: String,
-    nickname: Option<String>,
-    line_color: Option<String>,
-    note: Option<String>,
-) -> Result<(), String> {
-    let mira = crate::db::lock_mira(&state)?;
-    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-
-    mira.execute(
-        "INSERT OR REPLACE INTO mira_favorite_users (user_id, nickname, line_color, note, added_at)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
-        rusqlite::params![user_id, nickname, line_color, note, now],
-    )
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
-/// 指定 `user_id` をお気に入りから削除する (該当なしでも成功扱い)
-#[tauri::command]
-pub fn remove_favorite_user(state: State<'_, DbState>, user_id: String) -> Result<(), String> {
-    let mira = crate::db::lock_mira(&state)?;
-    mira.execute(
-        "DELETE FROM mira_favorite_users WHERE user_id = ?1",
-        [&user_id],
-    )
-    .map_err(|e| e.to_string())?;
     Ok(())
 }

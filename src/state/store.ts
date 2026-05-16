@@ -18,19 +18,37 @@ export class Store<T> {
     return this.value;
   }
 
-  // 値を更新して全リスナーに新値・旧値を通知する
+  // 値を更新して全リスナーに新値・旧値を通知する。
+  // - 参照同一 (`Object.is`) の場合は通知をスキップして無駄な再描画を避ける。
+  // - リスナーの 1 つが throw しても後続リスナーは継続実行する。
   set(next: T): void {
+    if (Object.is(next, this.value)) return;
     const prev = this.value;
     this.value = next;
-    this.listeners.forEach((fn) => fn(next, prev));
+    this.listeners.forEach((fn) => {
+      try {
+        fn(next, prev);
+      } catch (err) {
+        // 後続リスナーをブロックしないようコンソールにのみ吐く
+        console.error("[Store] listener threw:", err);
+      }
+    });
   }
 
   // 変更を購読し、解除関数を返す。
-  // 注意: 登録時には発火しない（初期値を拾いたい場合は別途 get() を呼ぶ）。
-  // CalendarPage → HomePage の遷移など、購読登録より前に set() された値はこの仕様で零れる。
+  // 注意: 登録時には発火しない（初期値を拾いたい場合は別途 get() を呼ぶか
+  // [`Store.subscribeImmediate`] を使う）。
   subscribe(fn: Listener<T>): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
+  }
+
+  // 登録と同時に現在値で 1 度発火し、その後の変更も購読する。
+  // pendingFocus のような「購読登録より前に set された値」を呼出側で拾い直さなくて済む。
+  subscribeImmediate(fn: Listener<T>): () => void {
+    const unsub = this.subscribe(fn);
+    fn(this.value, this.value);
+    return unsub;
   }
 }
 
@@ -80,7 +98,7 @@ export const settings = new Store<MiraSettings>({
   view_hour_end: 24,
 });
 
-// STELLARecord DB に接続できているか（HomePage の空状態判定に使う）
+// StellaRecord DB に接続できているか（HomePage の空状態判定に使う）
 export const stellaConnected = new Store<boolean>(false);
 
 // 起動時に取得した今日〜1週間以内の予定通知。レーン上のピン表示に使う。

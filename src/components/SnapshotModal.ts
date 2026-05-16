@@ -1,4 +1,5 @@
 import type { SnapshotSummary } from "../state/types";
+import { escapeHtml as escHtml } from "../utils/html";
 
 // スナップショット集計を表示する簡易モーダル
 export function showSnapshotModal(summary: SnapshotSummary, onClose: () => void): void {
@@ -46,6 +47,3 @@ export function showSnapshotModal(summary: SnapshotSummary, onClose: () => void)
   requestAnimationFrame(() => overlay.classList.add("visible"));
 }
 
-function escHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}

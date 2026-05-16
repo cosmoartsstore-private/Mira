@@ -34,7 +34,6 @@ export interface WeekLaneData {
 export interface PersonChip {
   user_id: string;
   display_name: string;
-  is_favorite: boolean;
   co_visit_count: number;
 }
 
@@ -82,7 +81,6 @@ export interface DayFocusData {
   memo_markers: MarkerSpan[];
   manual_markers: ManualMarker[];
   memokitto: MemokittoChip[];
-  has_update: boolean;
 }
 
 // カレンダーに表示するユーザー登録イベント

@@ -10,7 +10,6 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Mira",
@@ -22,10 +21,10 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' asset: http://asset.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost http://localhost:1421 ws://localhost:1421 https://fonts.googleapis.com https://fonts.gstatic.com;",
+      "csp": "default-src 'self' asset: http://asset.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://localhost:1421 ws://localhost:1421 https://fonts.googleapis.com https://fonts.gstatic.com;",
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": ["**/*.png", "**/*.jpg", "**/*.jpeg"]
       }
     }
   },

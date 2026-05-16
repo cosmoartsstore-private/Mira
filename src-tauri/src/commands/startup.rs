@@ -35,15 +35,20 @@ pub fn get_startup_info(state: State<'_, DbState>) -> Result<StartupInfo, String
 
     let mira = crate::db::lock_mira(&state)?;
 
-    // onboarding_completed が "0" (デフォルト) のままなら初回起動とみなす
-    let onboarding_needed = mira
-        .query_row(
-            "SELECT value FROM mira_settings WHERE key = 'onboarding_completed'",
-            [],
+    // mira_settings の文字列値を取得する小ヘルパー (キー未設定時は空文字)
+    let get_setting = |key: &str| -> String {
+        mira.query_row(
+            "SELECT value FROM mira_settings WHERE key = ?1",
+            [key],
             |row| row.get::<_, String>(0),
         )
-        .unwrap_or_else(|_| "0".to_string())
-        == "0";
+        .unwrap_or_default()
+    };
+
+    // onboarding_completed が "0" (デフォルト) のままなら初回起動とみなす
+    let onboarding_needed = get_setting("onboarding_completed") != "1";
+    // 設定 snapshot_enabled が OFF ならスナップショット/年間レビューも抑制する
+    let snapshot_enabled = get_setting("snapshot_enabled") == "1";
 
     // 古い dismiss レコードをGC (30日経過分)
     let _ = mira.execute(
@@ -51,14 +56,16 @@ pub fn get_startup_info(state: State<'_, DbState>) -> Result<StartupInfo, String
         [],
     );
 
-    // Check pending schedule notifications for today/upcoming
+    // 今日・今後の予定通知候補を取得
     let pending_notifications = query_pending_notifications(&mira);
 
     // 期 (Q1〜Q3) または年明け (annual) の振り返り未表示判定
-    let pending_review = check_pending_review(&mira);
-
-    // onboarding 中はスナップショット/年間レビューを抑制し、未表示扱いを温存する
-    let pending_review = if onboarding_needed { None } else { pending_review };
+    let pending_review = if onboarding_needed || !snapshot_enabled {
+        // onboarding 中 or 設定で無効化中: 抑制 (last_seen は更新しないので有効化時に再候補化される)
+        None
+    } else {
+        check_pending_review(&mira)
+    };
 
     Ok(StartupInfo {
         stella_connected,

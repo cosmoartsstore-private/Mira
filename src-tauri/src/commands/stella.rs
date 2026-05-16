@@ -10,7 +10,7 @@ use winreg::enums::HKEY_CURRENT_USER;
 use winreg::RegKey;
 
 /// `StellaRecord` 本体 (src-tauri/src/analyze/db.rs) と一致させた apps テーブル。
-/// 旧バージョンの `STELLARecord` にはこのテーブルが無いため、register 時に IF NOT EXISTS で作る。
+/// 旧バージョンの `StellaRecord` にはこのテーブルが無いため、register 時に IF NOT EXISTS で作る。
 /// category 列は削除済み、UNIQUE は path に移管済み。
 const APPS_SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS apps (
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS apps (
 );
 ";
 
-/// `STELLARecord` DB のパスをレジストリから解決する (新レイアウト優先 → 旧 `DbPath` フォールバック)
+/// `StellaRecord` DB のパスをレジストリから解決する (新レイアウト優先 → 旧 `DbPath` フォールバック)
 fn get_stellarecord_db_path() -> Option<String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let key = hkcu
@@ -45,7 +45,7 @@ fn get_stellarecord_db_path() -> Option<String> {
     key.get_value("DbPath").ok()
 }
 
-/// `STELLARecord` DB ファイルの実在を確認する (UI のオンボーディング判定で使う)
+/// `StellaRecord` DB ファイルの実在を確認する (UI のオンボーディング判定で使う)
 #[tauri::command]
 pub fn check_stellarecord_available() -> bool {
     get_stellarecord_db_path()
@@ -56,9 +56,14 @@ pub fn check_stellarecord_available() -> bool {
 ///
 /// R2-M-12: 既存レコードが存在しパスも一致する場合は INSERT OR REPLACE で
 /// 毎回 ~1MB の icon BLOB を再書込していた。SELECT で既存値を確認し、
-/// (path, icon) が変わっていない場合は UPDATE 自体を行わない。
+/// (name, description, icon) が全て変わっていない場合は UPDATE 自体を行わない。
+/// R2-M-25: 比較対象に name/description も含める (旧実装は icon のみ比較で
+/// 表示名・説明変更が反映されなかった)。
 #[tauri::command]
 pub fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String> {
+    const APP_NAME: &str = "Mira";
+    const APP_DESCRIPTION: &str = "VRChat活動ジャーナル";
+
     let db_path = get_stellarecord_db_path()
         .ok_or_else(|| "StellaRecord がインストールされていません".to_string())?;
 
@@ -74,21 +79,18 @@ pub fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String>
 
     let icon_data = load_app_icon(&app);
 
-    // 既存レコードの icon を path で取得（UNIQUE が path のため）
-    let existing_icon: Option<Option<Vec<u8>>> = conn
+    // 既存レコードの (name, description, icon) を path で取得 (UNIQUE が path のため)
+    let existing: Option<(String, String, Option<Vec<u8>>)> = conn
         .query_row(
-            "SELECT icon FROM apps WHERE path = ?1",
+            "SELECT name, description, icon FROM apps WHERE path = ?1",
             [&exe_str],
-            |row| {
-                let i: Option<Vec<u8>> = row.get(0)?;
-                Ok(i)
-            },
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .ok();
 
-    if let Some(cur_icon) = existing_icon {
-        // icon が変わっていなければ書き込みをスキップ（毎回 ~1MB BLOB を再書込するのを防ぐ）
-        if cur_icon == icon_data {
+    if let Some((cur_name, cur_desc, cur_icon)) = existing {
+        // 全フィールド一致なら書き込みをスキップ (毎回 ~1MB BLOB を再書込するのを防ぐ)
+        if cur_name == APP_NAME && cur_desc == APP_DESCRIPTION && cur_icon == icon_data {
             return Ok("StellaRecord に既に登録済みです (差分なし)".to_string());
         }
     }
@@ -101,19 +103,14 @@ pub fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String>
              name = excluded.name,
              description = excluded.description,
              icon = excluded.icon",
-        rusqlite::params![
-            "Mira",
-            "VRChat活動ジャーナル",
-            exe_str,
-            icon_data,
-        ],
+        rusqlite::params![APP_NAME, APP_DESCRIPTION, exe_str, icon_data],
     )
     .map_err(|e| format!("登録に失敗しました: {e}"))?;
 
     Ok("StellaRecord に登録しました".to_string())
 }
 
-/// `STELLARecord` の apps テーブルから Mira を登録解除する (アンインストール時の後片付け用)
+/// `StellaRecord` の apps テーブルから Mira を登録解除する (アンインストール時の後片付け用)
 #[tauri::command]
 pub fn unregister_from_stellarecord() -> Result<String, String> {
     let db_path = get_stellarecord_db_path()

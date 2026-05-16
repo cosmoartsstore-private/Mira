@@ -7,10 +7,10 @@ use rusqlite::{Connection, OpenFlags};
 use winreg::enums::HKEY_CURRENT_USER;
 use winreg::RegKey;
 
-/// `STELLARecord` DB に「読み取り専用」で接続を試みる。未インストール/ファイル無し時は None。
+/// `StellaRecord` DB に「読み取り専用」で接続を試みる。未インストール/ファイル無し時は None。
 ///
 /// フラグの意図:
-/// - `SQLITE_OPEN_READ_ONLY`: 他アプリ (Mira) の書込みで `STELLARecord` 本体を壊さないため。
+/// - `SQLITE_OPEN_READ_ONLY`: 他アプリ (Mira) の書込みで `StellaRecord` 本体を壊さないため。
 /// - `SQLITE_OPEN_NO_MUTEX`: 内部のスレッドロックを外す（DbState の Mutex で外側ロック済みなので不要）。
 /// - 加えて実行時 PRAGMA `query_only = ON` で SELECT 以外をブロックし、二重に書込み事故を防ぐ。
 pub fn try_connect() -> Option<Connection> {
@@ -28,7 +28,7 @@ pub fn try_connect() -> Option<Connection> {
     Some(conn)
 }
 
-/// `STELLARecord` DB のパスをレジストリから引く。
+/// `StellaRecord` DB のパスをレジストリから引く。
 /// 新レイアウト (`InstallLocation` 配下) を優先し、見つからなければ旧 `DbPath` にフォールバック。
 fn find_stella_db_path() -> Option<String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
