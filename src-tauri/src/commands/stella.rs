@@ -1,23 +1,29 @@
+//! `StellaRecord` との連携コマンド。
+//! - `StellaRecord` DB の存在確認 (`check_stellarecord_available`)
+//! - `StellaRecord` の `apps` テーブルへ Mira 自身を登録 / 解除
+//!
+//! Mira から `StellaRecord` 領域への書き込み (apps テーブル) は最小限に抑える。
+
 use rusqlite::Connection;
 use tauri::Manager;
-use winreg::enums::*;
+use winreg::enums::HKEY_CURRENT_USER;
 use winreg::RegKey;
 
-/// STELLARecord 側の apps テーブルスキーマ（fastparty / thirdparty 連携アプリ用）。
-/// 旧バージョンの STELLARecord にはこのテーブルが無いため、register 時に IF NOT EXISTS で作る。
+/// `StellaRecord` 本体 (src-tauri/src/analyze/db.rs) と一致させた apps テーブル。
+/// 旧バージョンの `STELLARecord` にはこのテーブルが無いため、register 時に IF NOT EXISTS で作る。
+/// category 列は削除済み、UNIQUE は path に移管済み。
 const APPS_SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS apps (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    name            TEXT NOT NULL UNIQUE,
+    name            TEXT NOT NULL,
     description     TEXT NOT NULL DEFAULT '',
-    path            TEXT NOT NULL,
-    category        TEXT NOT NULL DEFAULT 'thirdparty' CHECK(category IN ('fastparty', 'thirdparty')),
+    path            TEXT NOT NULL UNIQUE,
     icon            BLOB,
     registered_at   DATETIME DEFAULT (datetime('now', 'localtime'))
 );
 ";
 
-/// STELLARecord DB のパスをレジストリから解決する (新レイアウト優先 → 旧 DbPath フォールバック)
+/// `STELLARecord` DB のパスをレジストリから解決する (新レイアウト優先 → 旧 `DbPath` フォールバック)
 fn get_stellarecord_db_path() -> Option<String> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let key = hkcu
@@ -39,15 +45,14 @@ fn get_stellarecord_db_path() -> Option<String> {
     key.get_value("DbPath").ok()
 }
 
-/// STELLARecord DB ファイルの実在を確認する (UI のオンボーディング判定で使う)
+/// `STELLARecord` DB ファイルの実在を確認する (UI のオンボーディング判定で使う)
 #[tauri::command]
 pub fn check_stellarecord_available() -> bool {
     get_stellarecord_db_path()
-        .map(|p| std::path::Path::new(&p).exists())
-        .unwrap_or(false)
+        .is_some_and(|p| std::path::Path::new(&p).exists())
 }
 
-/// StellaRecord に Mira を登録する
+/// `StellaRecord` に Mira を登録する
 ///
 /// R2-M-12: 既存レコードが存在しパスも一致する場合は INSERT OR REPLACE で
 /// 毎回 ~1MB の icon BLOB を再書込していた。SELECT で既存値を確認し、
@@ -69,56 +74,46 @@ pub fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String>
 
     let icon_data = load_app_icon(&app);
 
-    // 既存レコードの (path, icon) を取得
-    let existing: Option<(String, Option<Vec<u8>>)> = conn
+    // 既存レコードの icon を path で取得（UNIQUE が path のため）
+    let existing_icon: Option<Option<Vec<u8>>> = conn
         .query_row(
-            "SELECT path, icon FROM apps WHERE name = ?1",
-            ["Mira"],
+            "SELECT icon FROM apps WHERE path = ?1",
+            [&exe_str],
             |row| {
-                let p: String = row.get(0)?;
-                let i: Option<Vec<u8>> = row.get(1)?;
-                Ok((p, i))
+                let i: Option<Vec<u8>> = row.get(0)?;
+                Ok(i)
             },
         )
         .ok();
 
-    match existing {
-        Some((cur_path, cur_icon)) => {
-            // path / icon が変わっていなければ書き込みをスキップ
-            if cur_path == exe_str && cur_icon == icon_data {
-                return Ok("StellaRecord に既に登録済みです (差分なし)".to_string());
-            }
-            // 差分あり → UPDATE のみ実施
-            conn.execute(
-                "UPDATE apps SET description = ?1, path = ?2, category = 'fastparty', icon = ?3 WHERE name = 'Mira'",
-                rusqlite::params![
-                    "VRChat活動ジャーナル",
-                    exe_str,
-                    icon_data,
-                ],
-            )
-            .map_err(|e| format!("更新に失敗しました: {e}"))?;
-        }
-        None => {
-            // 未登録 → INSERT
-            conn.execute(
-                "INSERT INTO apps (name, description, path, category, icon)
-                 VALUES (?1, ?2, ?3, 'fastparty', ?4)",
-                rusqlite::params![
-                    "Mira",
-                    "VRChat活動ジャーナル",
-                    exe_str,
-                    icon_data,
-                ],
-            )
-            .map_err(|e| format!("登録に失敗しました: {e}"))?;
+    if let Some(cur_icon) = existing_icon {
+        // icon が変わっていなければ書き込みをスキップ（毎回 ~1MB BLOB を再書込するのを防ぐ）
+        if cur_icon == icon_data {
+            return Ok("StellaRecord に既に登録済みです (差分なし)".to_string());
         }
     }
+
+    // upsert: path で衝突したら name/description/icon を更新する
+    conn.execute(
+        "INSERT INTO apps (name, description, path, icon)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(path) DO UPDATE SET
+             name = excluded.name,
+             description = excluded.description,
+             icon = excluded.icon",
+        rusqlite::params![
+            "Mira",
+            "VRChat活動ジャーナル",
+            exe_str,
+            icon_data,
+        ],
+    )
+    .map_err(|e| format!("登録に失敗しました: {e}"))?;
 
     Ok("StellaRecord に登録しました".to_string())
 }
 
-/// STELLARecord の apps テーブルから Mira を登録解除する (アンインストール時の後片付け用)
+/// `STELLARecord` の apps テーブルから Mira を登録解除する (アンインストール時の後片付け用)
 #[tauri::command]
 pub fn unregister_from_stellarecord() -> Result<String, String> {
     let db_path = get_stellarecord_db_path()
@@ -131,7 +126,11 @@ pub fn unregister_from_stellarecord() -> Result<String, String> {
     let conn = Connection::open(&db_path)
         .map_err(|e| format!("DB を開けませんでした: {e}"))?;
 
-    conn.execute("DELETE FROM apps WHERE name = ?1", rusqlite::params!["Mira"])
+    // 自身の exe path を主キーとして削除する（複数インストールに耐性）
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
+    let exe_str = exe_path.to_string_lossy().to_string();
+    conn.execute("DELETE FROM apps WHERE path = ?1", rusqlite::params![exe_str])
         .map_err(|e| format!("登録解除に失敗しました: {e}"))?;
 
     Ok("StellaRecord から登録解除しました".to_string())

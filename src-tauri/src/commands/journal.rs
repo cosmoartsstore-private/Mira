@@ -1,3 +1,17 @@
+//! 日次ジャーナル機能の `Tauri` コマンド群。週レーンの可視化・日別フォーカス表示・メモ保存・
+//! 手動マーカー編集を提供する。
+//!
+//! 1 日分の集計値 (人数・写真数・経過秒) を u32/f32 に変換する箇所が多数あるが、
+//! いずれも 1 日分の活動量という現実的上限内 (~10^3 規模) なので
+//! `truncation` / `precision_loss` は許容する (`#![allow(clippy::cast_*)]` を参照)。
+//! マーカーの byte 位置を i64 として DB に格納する箇所も 1 日分のメモ長 (~10^3 文字) 内で安全。
+
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_precision_loss
+)]
+
 use chrono::{Datelike, Timelike};
 use serde::Serialize;
 use tauri::State;
@@ -5,7 +19,7 @@ use tauri::State;
 use crate::db::DbState;
 use crate::logic::{marker, memokitto, world_color};
 
-/// 同席プレイヤー (同名別 vrchat_id を区別するため user_id を保持)
+/// 同席プレイヤー (同名別 `vrchat_id` を区別するため `user_id` を保持)
 #[derive(Serialize, Clone)]
 pub struct VisitPlayer {
     pub user_id: String,
@@ -95,15 +109,15 @@ pub struct DayFocusData {
     pub has_update: bool,
 }
 
-/// week_start (日曜日, YYYY-MM-DD) から 7 日分のレーンデータを返す。
-/// 表示時間帯 hour_start/hour_end は設定値があれば優先、無ければ過去 30 日の活動傾向から自動検出する。
+/// `week_start` (日曜日, YYYY-MM-DD) から 7 日分のレーンデータを返す。
+/// 表示時間帯 `hour_start/hour_end` は設定値があれば優先、無ければ過去 30 日の活動傾向から自動検出する。
 #[tauri::command]
 pub fn get_week_lane_data(
     state: State<'_, DbState>,
     week_start: String,
 ) -> Result<WeekLaneData, String> {
-    let stella_guard = state.stella.lock().unwrap();
-    let mira = state.mira.lock().unwrap();
+    let stella_guard = crate::db::lock_stella(&state)?;
+    let mira = crate::db::lock_mira(&state)?;
 
     let stella = stella_guard
         .as_ref()
@@ -140,12 +154,12 @@ pub fn get_week_lane_data(
     })
 }
 
-/// HomePage のフォーカスビュー用に、指定日のあらゆる情報をまとめて返す。
+/// `HomePage` のフォーカスビュー用に、指定日のあらゆる情報をまとめて返す。
 /// 取得順は visits → 人 → 写真 → memo → マーカー (自動・手動) → メモきっと候補、と依存順。
 #[tauri::command]
 pub fn get_day_focus_data(state: State<'_, DbState>, date: String) -> Result<DayFocusData, String> {
-    let stella_guard = state.stella.lock().unwrap();
-    let mira = state.mira.lock().unwrap();
+    let stella_guard = crate::db::lock_stella(&state)?;
+    let mira = crate::db::lock_mira(&state)?;
 
     let stella = stella_guard
         .as_ref()
@@ -222,10 +236,10 @@ pub fn get_day_focus_data(state: State<'_, DbState>, date: String) -> Result<Day
 
 /// 指定日のメモを upsert (date 主キーで INSERT or UPDATE) する。
 /// フロントの maxLength と二重に 1000 文字で切る（バイト数ではなく文字数ベースで切るため
-/// char_indices().nth() で 1001 文字目の byte 位置を取得し、その手前で slice する）。
+/// `char_indices().nth()` で 1001 文字目の byte 位置を取得し、その手前で slice する）。
 #[tauri::command]
 pub fn save_day_memo(state: State<'_, DbState>, date: String, memo: String) -> Result<(), String> {
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     // 設定 memo_max_length を優先し、なければデフォルト 1000 文字
@@ -257,6 +271,9 @@ pub fn save_day_memo(state: State<'_, DbState>, date: String, memo: String) -> R
     Ok(())
 }
 
+/// 手動マーカーで許可された色 (UI のカラーピッカー選択肢と同期)
+const ALLOWED_MARKER_COLORS: &[&str] = &["red", "blue", "green", "orange"];
+
 /// 手動マーカーを追加し、挿入されたIDを返す
 ///
 /// R2-M-6: start < end / color 許可集合 / memo 長との越境を検証する
@@ -270,15 +287,14 @@ pub fn add_manual_marker(
 ) -> Result<i64, String> {
     // start < end
     if start >= end {
-        return Err(format!("invalid marker range: {} >= {}", start, end));
+        return Err(format!("invalid marker range: {start} >= {end}"));
     }
     // 許可された color のみ受け付ける
-    const ALLOWED: &[&str] = &["red", "blue", "green", "orange"];
-    if !ALLOWED.contains(&color.as_str()) {
-        return Err(format!("invalid marker color: {}", color));
+    if !ALLOWED_MARKER_COLORS.contains(&color.as_str()) {
+        return Err(format!("invalid marker color: {color}"));
     }
 
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
 
     // memo 文字数 (UTF-16 単位) を取得し、end が越境していないか確認する
     let memo_len_utf16: usize = mira
@@ -289,12 +305,10 @@ pub fn add_manual_marker(
         )
         .ok()
         .flatten()
-        .map(|s| s.encode_utf16().count())
-        .unwrap_or(0);
+        .map_or(0, |s| s.encode_utf16().count());
     if end > memo_len_utf16 {
         return Err(format!(
-            "marker end ({}) exceeds memo length ({})",
-            end, memo_len_utf16
+            "marker end ({end}) exceeds memo length ({memo_len_utf16})"
         ));
     }
 
@@ -309,7 +323,7 @@ pub fn add_manual_marker(
 /// 指定IDの手動マーカーを削除する
 #[tauri::command]
 pub fn remove_manual_marker(state: State<'_, DbState>, id: i64) -> Result<(), String> {
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
     mira.execute("DELETE FROM mira_manual_markers WHERE id = ?1", [id])
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -324,14 +338,17 @@ fn load_manual_markers(mira: &rusqlite::Connection, date: &str) -> Vec<ManualMar
     };
 
     stmt.query_map([date], |row| {
+        // DB に万が一負値が入っていても安全側 (0 へクランプ) に倒す
+        let start_raw = row.get::<_, i64>(1)?;
+        let end_raw = row.get::<_, i64>(2)?;
         Ok(ManualMarker {
             id: row.get(0)?,
-            start: row.get::<_, i64>(1)? as usize,
-            end: row.get::<_, i64>(2)? as usize,
+            start: usize::try_from(start_raw).unwrap_or(0),
+            end: usize::try_from(end_raw).unwrap_or(0),
             color: row.get(3)?,
         })
     })
-    .map(|rows| rows.filter_map(|r| r.ok()).collect())
+    .map(|rows| rows.filter_map(std::result::Result::ok).collect())
     .unwrap_or_default()
 }
 
@@ -365,10 +382,8 @@ fn query_visits_for_date(
             // - duration_sec から end を出す。
             // - 0 のときは「現在進行中」と見なし、今が join 日付なら now まで、
             //   過去日なら最低 +0.1h (約 6 分) の高さを保証する。
-            let end_hour = leave_time
-                .as_deref()
-                .map(parse_hour_fraction)
-                .unwrap_or_else(|| {
+            let end_hour = leave_time.as_deref().map_or_else(
+                || {
                     if duration_sec > 0 {
                         start_hour + (duration_sec as f32 / 3600.0)
                     } else {
@@ -388,12 +403,14 @@ fn query_visits_for_date(
                             start_hour + 0.1
                         }
                     }
-                });
+                },
+                parse_hour_fraction,
+            );
 
             Ok((world_id, world_name, start_hour, end_hour, duration_sec / 60))
         })
         .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .map(|(world_id, world_name, start_hour, end_hour, duration_min)| {
             // R2-M-9: world_id ベースで色生成。world_name が変わっても色が固定される。
             let color_hex = get_or_generate_world_color(mira, &world_id, &world_name);
@@ -438,7 +455,7 @@ fn query_people_for_date(
             Ok((user_id, display_name, co_visit_count))
         })
         .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .map(|(user_id, display_name, co_visit_count)| {
             let is_favorite = mira
                 .query_row(
@@ -481,7 +498,7 @@ fn query_photos_for_date(
             Ok(PhotoEntry { file_path, hour })
         })
         .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .collect();
 
     Ok(photos)
@@ -517,7 +534,7 @@ fn attach_players_to_visits(
     };
 
     let entries: Vec<(f32, String, String)> = rows
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .map(|(join_time, uid, name)| (parse_hour_fraction(&join_time), uid, name))
         .collect();
 

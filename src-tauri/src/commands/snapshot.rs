@@ -1,3 +1,7 @@
+//! 年次レビュー / 四半期スナップショットの集計データを返す Tauri コマンド。
+//! `pending_review` キー (`annual_YYYY` / `snapshot_YYYY-Qn`) から対象期間を決定し、
+//! 該当期間の予定数とメモ統計 (日数・総文字数) を返す。
+
 use serde::Serialize;
 use tauri::State;
 
@@ -15,7 +19,7 @@ pub struct SnapshotSummary {
     pub memo_char_total: i32,
 }
 
-/// pending_review キーから集計期間を決定し、その期間の予定/メモ統計を返す
+/// `pending_review` キーから集計期間を決定し、その期間の予定/メモ統計を返す
 ///
 /// 対応キー:
 ///   - `annual_YYYY`       => YYYY-01-01 〜 YYYY-12-31
@@ -27,7 +31,7 @@ pub fn get_snapshot_summary(
 ) -> Result<SnapshotSummary, String> {
     let (period_start, period_end, label) = parse_key(&key).ok_or_else(|| "unsupported key".to_string())?;
 
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
 
     let event_count: i32 = mira
         .query_row(
@@ -68,7 +72,7 @@ pub fn get_snapshot_summary(
                 total = total.saturating_add(s.chars().count());
             }
         }
-        total as i32
+        i32::try_from(total).unwrap_or(i32::MAX)
     };
 
     Ok(SnapshotSummary {
@@ -82,14 +86,14 @@ pub fn get_snapshot_summary(
     })
 }
 
-/// pending_review キーをパースし (start, end, ラベル) を返す
+/// `pending_review` キーをパースし (start, end, ラベル) を返す
 fn parse_key(key: &str) -> Option<(String, String, String)> {
     if let Some(rest) = key.strip_prefix("annual_") {
         let year: i32 = rest.parse().ok()?;
         return Some((
-            format!("{:04}-01-01", year),
-            format!("{:04}-12-31", year),
-            format!("{}年 年間レビュー", year),
+            format!("{year:04}-01-01"),
+            format!("{year:04}-12-31"),
+            format!("{year}年 年間レビュー"),
         ));
     }
     if let Some(rest) = key.strip_prefix("snapshot_") {
@@ -109,10 +113,10 @@ fn parse_key(key: &str) -> Option<(String, String, String)> {
             _ => return None,
         };
         return Some((
-            format!("{:04}-{:02}-01", year, start_m),
-            format!("{:04}-{:02}-{:02}", year, end_m, end_day),
+            format!("{year:04}-{start_m:02}-01"),
+            format!("{year:04}-{end_m:02}-{end_day:02}"),
             // ユーザー認識のため月範囲をラベルに併記する
-            format!("{}年 Q{} スナップショット ({}月-{}月)", year, qn, start_m, end_m),
+            format!("{year}年 Q{qn} スナップショット ({start_m}月-{end_m}月)"),
         ));
     }
     None

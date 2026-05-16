@@ -11,6 +11,10 @@ src-tauri/target/
 # Claude Code local settings
 .claude/
 
+# 内部調査メモ・修正タスクリスト (公開リポには含めない)
+fix-task.md
+memory/
+
 # OS files
 Thumbs.db
 Desktop.ini

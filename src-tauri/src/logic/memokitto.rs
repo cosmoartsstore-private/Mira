@@ -1,3 +1,6 @@
+//! 「めもきっと」チップ抽出ロジック。指定日のメモ・訪問・写真から特徴的なイベントを抽出して
+//! フロントの付箋風 UI に表示するためのデータを組み立てる。
+
 use rusqlite::Connection;
 use serde::Serialize;
 
@@ -23,7 +26,7 @@ pub fn extract(date: &str, stella: &Connection) -> Vec<MemokittoChip> {
          ORDER BY MIN(join_time)",
     ) {
         if let Ok(rows) = stmt.query_map([date], |row| row.get::<_, String>(0)) {
-            chips.extend(rows.filter_map(|r| r.ok()).map(|name| MemokittoChip {
+            chips.extend(rows.filter_map(std::result::Result::ok).map(|name| MemokittoChip {
                 label: name,
                 category: "world".into(),
             }));
@@ -41,7 +44,7 @@ pub fn extract(date: &str, stella: &Connection) -> Vec<MemokittoChip> {
          ORDER BY fu.account_name",
     ) {
         if let Ok(rows) = stmt.query_map([date], |row| row.get::<_, String>(0)) {
-            chips.extend(rows.filter_map(|r| r.ok()).map(|name| MemokittoChip {
+            chips.extend(rows.filter_map(std::result::Result::ok).map(|name| MemokittoChip {
                 label: name,
                 category: "person".into(),
             }));

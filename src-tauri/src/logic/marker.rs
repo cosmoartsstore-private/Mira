@@ -1,6 +1,10 @@
+//! メモ本文中からワールド名 / 人名にマッチする箇所を検出し、`UTF-16` コードユニット位置で
+//! 範囲を返す純粋ロジック。フロントの DOM カーソル位置と整合させるため、内部の byte 位置を
+//! `encode_utf16` 経由で UTF-16 単位に変換する。
+
 use serde::Serialize;
 
-/// マーカーの種類。world と person で見た目の色が分かれる (CSS 側で marker-underline[data-kind] で分岐)
+/// マーカーの種類。`world` と `person` で見た目の色が分かれる (CSS 側で `marker-underline[data-kind]` で分岐)
 #[derive(Serialize, Clone, PartialEq)]
 pub enum MarkerKind {
     World,
@@ -9,7 +13,7 @@ pub enum MarkerKind {
 
 /// メモ内で検出された 1 つのマッチ。
 /// **start / end は UTF-16 コードユニット位置** (JS 文字列インデックス互換)。
-/// 旧版は UTF-8 byte 位置を返していたため日本語混じり文でズレていた。バイト → UTF-16 変換は find_markers 内で行う。
+/// 旧版は UTF-8 byte 位置を返していたため日本語混じり文でズレていた。バイト → UTF-16 変換は `find_markers` 内で行う。
 #[derive(Serialize)]
 pub struct MarkerMatch {
     pub start: usize,
@@ -46,10 +50,8 @@ pub fn find_markers(
     let mut matches: Vec<MarkerMatch> = Vec::new();
     let mut used: Vec<(usize, usize)> = Vec::new();
 
-    // フロントの JS 文字列は UTF-16 のため、返却前に byte 位置を UTF-16 単位に変換する
-    let utf16_offsets = build_utf16_offsets(text);
-
     // 人 → ワールドの順で 2 周回す。同位置に両カテゴリが当たり得るが、先勝ち (人) で固定する。
+    // byte → UTF-16 変換は match_indices ループ内で `text[..pos].encode_utf16().count()` により直接行う。
     for kind in [MarkerKind::Person, MarkerKind::World] {
         for (term, k) in &candidates {
             if *k != kind {

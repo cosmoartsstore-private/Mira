@@ -1,9 +1,13 @@
+//! Mira DB のスキーマ DDL とマイグレーション処理。
+//! `CREATE TABLE IF NOT EXISTS` 群と、`pragma_table_info` ベースで列の存在を確認してから
+//! ALTER する防御的マイグレーション関数を提供する。
+
 use rusqlite::{Connection, Result};
 
 /// Mira DB を最新スキーマに揃える。
 /// 1. CREATE TABLE IF NOT EXISTS で初期テーブル群を作る（初回起動時のみ実体作成）
-/// 2. 後から追加した remind_minutes_before / reminded カラムを未追加なら ALTER で足す
-/// 3. mira_settings に既知の設定キーをデフォルト値で投入 (INSERT OR IGNORE)
+/// 2. 後から追加した `remind_minutes_before` / reminded カラムを未追加なら ALTER で足す
+/// 3. `mira_settings` に既知の設定キーをデフォルト値で投入 (INSERT OR IGNORE)
 pub fn run(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "
@@ -121,7 +125,7 @@ pub fn run(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-/// pragma_table_info で対象カラムの有無を確認し、未追加なら ALTER で追加する
+/// `pragma_table_info` で対象カラムの有無を確認し、未追加なら ALTER で追加する
 ///
 /// R2-M-11: 個別チェック + 個別 ALTER により部分適用リスクを避ける。
 fn add_column_if_missing(
@@ -133,8 +137,7 @@ fn add_column_if_missing(
     let count: i64 = conn
         .query_row(
             &format!(
-                "SELECT COUNT(*) FROM pragma_table_info('{}') WHERE name = ?1",
-                table
+                "SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = ?1"
             ),
             [column],
             |r| r.get(0),
@@ -145,8 +148,7 @@ fn add_column_if_missing(
         // 単一 ALTER 文を 1 トランザクション内で実行する。失敗時はロールバックされ
         // pragma 状態を維持できる。
         conn.execute_batch(&format!(
-            "BEGIN; ALTER TABLE {} ADD COLUMN {} {}; COMMIT;",
-            table, column, column_def
+            "BEGIN; ALTER TABLE {table} ADD COLUMN {column} {column_def}; COMMIT;"
         ))?;
     }
 

@@ -1,3 +1,6 @@
+//! アプリ起動時の Tauri コマンド群。`StellaRecord` 接続状況・初回オンボーディング判定・
+//! 起動時リマインダー候補の取得と dismiss 処理、スナップショットレビュー誘導を統括する。
+
 use chrono::Datelike;
 use serde::Serialize;
 use tauri::State;
@@ -20,7 +23,7 @@ pub struct ScheduleNotification {
 pub struct StartupInfo {
     pub stella_connected: bool,
     pub pending_notifications: Vec<ScheduleNotification>,
-    /// 振り返り演出のトリガキー (例: "annual_2025", "snapshot_2026-Q1")。なければ None。
+    /// 振り返り演出のトリガキー (例: "`annual_2025`", "snapshot_2026-Q1")。なければ None。
     pub pending_review: Option<String>,
     pub onboarding_needed: bool,
 }
@@ -28,9 +31,9 @@ pub struct StartupInfo {
 /// フロントが initApp 直後に呼ぶエントリ。STELLA 接続・予定・レビュー誘導・初回判定をまとめて返す。
 #[tauri::command]
 pub fn get_startup_info(state: State<'_, DbState>) -> Result<StartupInfo, String> {
-    let stella_connected = state.stella.lock().unwrap().is_some();
+    let stella_connected = crate::db::lock_stella(&state)?.is_some();
 
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
 
     // onboarding_completed が "0" (デフォルト) のままなら初回起動とみなす
     let onboarding_needed = mira
@@ -68,17 +71,17 @@ pub fn get_startup_info(state: State<'_, DbState>) -> Result<StartupInfo, String
 /// 起動時/予定変更時に表示する pending 通知を再取得する
 #[tauri::command]
 pub fn get_pending_notifications(state: State<'_, DbState>) -> Result<Vec<ScheduleNotification>, String> {
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
     Ok(query_pending_notifications(&mira))
 }
 
 /// 起動通知を恒久的に dismiss する
 ///
-/// source_ref は ScheduleNotification.source_ref をそのまま受け取り、
+/// `source_ref` は `ScheduleNotification.source_ref` をそのまま受け取り、
 /// 非繰り返し予定は "<id>"、週次予定は "<id>_YYYY-MM-DD" となる。
 #[tauri::command]
 pub fn dismiss_notification(state: State<'_, DbState>, source_ref: String) -> Result<(), String> {
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     mira.execute(
         "INSERT OR REPLACE INTO mira_dismissed_events (source_ref, dismissed_at) VALUES (?1, ?2)",
@@ -91,7 +94,7 @@ pub fn dismiss_notification(state: State<'_, DbState>, source_ref: String) -> Re
 /// 起動通知レビューを既読としてマークする (snapshot_* / annual_* キー)
 #[tauri::command]
 pub fn mark_review_seen(state: State<'_, DbState>, key: String) -> Result<(), String> {
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
     // key 例: "snapshot_2025-Q1" / "annual_2024"
     if let Some(rest) = key.strip_prefix("snapshot_") {
         mira.execute(
@@ -141,7 +144,7 @@ fn query_pending_notifications(
                 source_ref: id.to_string(),
             })
         }) {
-            result.extend(iter.filter_map(|r| r.ok()));
+            result.extend(iter.filter_map(std::result::Result::ok));
         }
     }
 
@@ -157,7 +160,7 @@ fn query_pending_notifications(
             .prepare("SELECT source_ref FROM mira_dismissed_events")
             .and_then(|mut s| {
                 s.query_map([], |row| row.get::<_, String>(0))
-                    .map(|it| it.filter_map(|r| r.ok()).collect())
+                    .map(|it| it.filter_map(std::result::Result::ok).collect())
             })
             .unwrap_or_default();
 
@@ -169,10 +172,10 @@ fn query_pending_notifications(
                 row.get::<_, String>(3)?,
             ))
         }) {
-            for (id, title, scheduled_at, event_type) in iter.filter_map(|r| r.ok()) {
+            for (id, title, scheduled_at, event_type) in iter.filter_map(std::result::Result::ok) {
                 if let Some(next) = next_weekly_within_week(&scheduled_at, &now) {
                     let next_date = next.format("%Y-%m-%d").to_string();
-                    let source_ref = format!("{}_{}", id, next_date);
+                    let source_ref = format!("{id}_{next_date}");
                     if dismissed.contains(&source_ref) {
                         continue;
                     }
@@ -192,9 +195,9 @@ fn query_pending_notifications(
     result
 }
 
-/// scheduled_at の曜日/時刻を基点に、今から 7 日以内の次の発火日時を返す
+/// `scheduled_at` の曜日/時刻を基点に、今から 7 日以内の次の発火日時を返す
 ///
-/// scheduled_at が未来日 (まだ初回発火していない) の場合は、未来の base_date 自身が
+/// `scheduled_at` が未来日 (まだ初回発火していない) の場合は、未来の `base_date` 自身が
 /// 最初の発火日となるのが正しく、今週内に同曜日があっても発火させない。
 fn next_weekly_within_week(
     scheduled_at: &str,
@@ -258,16 +261,16 @@ fn check_pending_review(conn: &rusqlite::Connection) -> Option<String> {
             .unwrap_or_default();
 
         if last_seen != prev_year {
-            return Some(format!("annual_{}", prev_year));
+            return Some(format!("annual_{prev_year}"));
         }
     }
 
     // Snapshot: Q1 start=Apr, Q2 start=Jul, Q3 start=Oct, Q4 start=Jan (前年のQ4扱い)
     let quarter_key = match month {
         1..=3 => Some(format!("{}-Q4", current_year - 1)),
-        4..=6 => Some(format!("{}-Q1", current_year)),
-        7..=9 => Some(format!("{}-Q2", current_year)),
-        10..=12 => Some(format!("{}-Q3", current_year)),
+        4..=6 => Some(format!("{current_year}-Q1")),
+        7..=9 => Some(format!("{current_year}-Q2")),
+        10..=12 => Some(format!("{current_year}-Q3")),
         _ => None,
     };
 
@@ -281,7 +284,7 @@ fn check_pending_review(conn: &rusqlite::Connection) -> Option<String> {
             .unwrap_or_default();
 
         if last_seen != qk {
-            return Some(format!("snapshot_{}", qk));
+            return Some(format!("snapshot_{qk}"));
         }
     }
 

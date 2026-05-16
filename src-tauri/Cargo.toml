@@ -10,15 +10,34 @@ name = "mira_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2.0.5", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset"] }
+tauri = { version = "2.2.4", features = ["protocol-asset"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.38", features = ["bundled"] }
 winreg = "0.52"
 chrono = { version = "0.4", features = ["serde"] }
-reqwest = { version = "0.12", features = ["json"] }
-tokio = { version = "1", features = ["time"] }
-base64 = "0.22"
+
+# StellaRecord と同じ品質ポリシー。unwrap/expect/panic 経路はコンパイル時に弾く。
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+too_many_lines = "warn"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+# IPC コマンドの shape を保つため値渡しを許可
+needless_pass_by_value = "allow"
+# 引数 7 個超の関数を許可（Tauri コマンドのリファクタ影響大）
+too_many_arguments = "allow"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true

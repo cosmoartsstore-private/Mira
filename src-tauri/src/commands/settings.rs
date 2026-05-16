@@ -1,12 +1,16 @@
+//! アプリ全体設定の Tauri コマンド群。`mira_settings` テーブル (key/value 形式) を介して
+//! フォント / 表示 / メモ上限 / リマインダー音声等の設定を読み書きする。
+//! お気に入りユーザー (`mira_favorite_users`) の CRUD も同モジュールで扱う。
+
 use serde::Serialize;
 use tauri::State;
 
+use crate::commands::REMIND_MIN_MAX;
 use crate::db::DbState;
 
-/// remind_minutes_before 等の上限 (24時間)
-const REMIND_MIN_MAX: i64 = 1440;
-
-/// アプリ全体の設定値
+/// アプリ全体の設定値。トグル系設定 (`transition` / `snapshot` / `onboarding` / `voicevox` / `reminder_sound`)
+/// で bool が複数並ぶのは UI 設定の性質上自然で、列挙型化はかえって扱いにくい。
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Serialize)]
 pub struct MiraSettings {
     pub font_family: String,
@@ -32,12 +36,12 @@ pub struct FavoriteUser {
     pub note: Option<String>,
 }
 
-/// mira_settings から MiraSettings 構造体を組み立てて返す。
+/// `mira_settings` から `MiraSettings` 構造体を組み立てて返す。
 /// 「1" → true、それ以外 → false」のルールで真偽値を解釈。
-/// 値が無いキーは unwrap_or_default で空文字扱いとなり、bool は OFF として処理される。
+/// 値が無いキーは `unwrap_or_default` で空文字扱いとなり、bool は OFF として処理される。
 #[tauri::command]
 pub fn get_settings(state: State<'_, DbState>) -> Result<MiraSettings, String> {
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
 
     // 単純な「キーで value を引いて文字列で返す」クロージャ。失敗時は空文字
     let get = |key: &str| -> String {
@@ -67,16 +71,16 @@ pub fn get_settings(state: State<'_, DbState>) -> Result<MiraSettings, String> {
 /// 任意の設定キーに値を upsert する。bool は呼出側で "1"/"0" 文字列に揃える前提。
 #[tauri::command]
 pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Result<(), String> {
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
 
     // view_hour_start / view_hour_end は範囲と前後関係を検証する
     if key == "view_hour_start" || key == "view_hour_end" {
         let parsed: u32 = value
             .parse()
-            .map_err(|_| format!("invalid {} value: {}", key, value))?;
+            .map_err(|_| format!("invalid {key} value: {value}"))?;
         // detect_activity_range が 30 まで返すため上限は 30 に合わせる
         if parsed > 30 {
-            return Err(format!("{} must be in 0..=30", key));
+            return Err(format!("{key} must be in 0..=30"));
         }
         // 反対側の値と比較し start < end を保証する
         let other_key = if key == "view_hour_start" {
@@ -101,8 +105,7 @@ pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Res
         };
         if start >= end {
             return Err(format!(
-                "view_hour_start ({}) must be less than view_hour_end ({})",
-                start, end
+                "view_hour_start ({start}) must be less than view_hour_end ({end})"
             ));
         }
     }
@@ -111,11 +114,10 @@ pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Res
     if key == "remind_minutes_before_default" {
         let parsed: i64 = value
             .parse()
-            .map_err(|_| format!("invalid {} value: {}", key, value))?;
+            .map_err(|_| format!("invalid {key} value: {value}"))?;
         if !(0..=REMIND_MIN_MAX).contains(&parsed) {
             return Err(format!(
-                "{} must be in 0..={}, got {}",
-                key, REMIND_MIN_MAX, parsed
+                "{key} must be in 0..={REMIND_MIN_MAX}, got {parsed}"
             ));
         }
     }
@@ -128,9 +130,9 @@ pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Res
     Ok(())
 }
 
-/// view_hour_start / view_hour_end を一度のトランザクションで原子的に更新する
+/// `view_hour_start` / `view_hour_end` を一度のトランザクションで原子的に更新する
 ///
-/// set_setting を 1 キーずつ呼ぶと、片方を更新した直後に
+/// `set_setting` を 1 キーずつ呼ぶと、片方を更新した直後に
 /// 一時的に start >= end になり 2 回目のリクエストがエラーになる詰まりが起きる。
 /// このコマンドは両値を 1 トランザクションで書き換え、その内部一貫性を保証する。
 #[tauri::command]
@@ -141,18 +143,16 @@ pub fn set_view_hour_range(
 ) -> Result<(), String> {
     if start > 30 || end > 30 {
         return Err(format!(
-            "view_hour values must be in 0..=30, got start={}, end={}",
-            start, end
+            "view_hour values must be in 0..=30, got start={start}, end={end}"
         ));
     }
     if start >= end {
         return Err(format!(
-            "view_hour_start ({}) must be less than view_hour_end ({})",
-            start, end
+            "view_hour_start ({start}) must be less than view_hour_end ({end})"
         ));
     }
 
-    let mut mira = state.mira.lock().unwrap();
+    let mut mira = crate::db::lock_mira(&state)?;
     let tx = mira
         .transaction()
         .map_err(|e| e.to_string())?;
@@ -174,8 +174,8 @@ pub fn set_view_hour_range(
 #[tauri::command]
 pub fn get_favorite_users(state: State<'_, DbState>) -> Result<Vec<FavoriteUser>, String> {
     // デッドロック回避のためロック順を stella → mira に統一
-    let stella_guard = state.stella.lock().unwrap();
-    let mira = state.mira.lock().unwrap();
+    let stella_guard = crate::db::lock_stella(&state)?;
+    let mira = crate::db::lock_mira(&state)?;
 
     let mut stmt = mira
         .prepare("SELECT user_id, nickname, line_color, note FROM mira_favorite_users ORDER BY added_at")
@@ -191,7 +191,7 @@ pub fn get_favorite_users(state: State<'_, DbState>) -> Result<Vec<FavoriteUser>
             ))
         })
         .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .map(|(user_id, nickname, line_color, note)| {
             let display_name = stella_guard
                 .as_ref()
@@ -218,7 +218,7 @@ pub fn get_favorite_users(state: State<'_, DbState>) -> Result<Vec<FavoriteUser>
     Ok(favorites)
 }
 
-/// お気に入りユーザーを upsert する (INSERT OR REPLACE のため nickname/line_color/note も上書き)
+/// お気に入りユーザーを upsert する (INSERT OR REPLACE のため `nickname/line_color/note` も上書き)
 #[tauri::command]
 pub fn add_favorite_user(
     state: State<'_, DbState>,
@@ -227,7 +227,7 @@ pub fn add_favorite_user(
     line_color: Option<String>,
     note: Option<String>,
 ) -> Result<(), String> {
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     mira.execute(
@@ -240,10 +240,10 @@ pub fn add_favorite_user(
     Ok(())
 }
 
-/// 指定 user_id をお気に入りから削除する (該当なしでも成功扱い)
+/// 指定 `user_id` をお気に入りから削除する (該当なしでも成功扱い)
 #[tauri::command]
 pub fn remove_favorite_user(state: State<'_, DbState>, user_id: String) -> Result<(), String> {
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
     mira.execute(
         "DELETE FROM mira_favorite_users WHERE user_id = ?1",
         [&user_id],

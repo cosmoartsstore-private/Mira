@@ -1,3 +1,7 @@
+//! ワールド名からレーン用の決定論的なカラーパレット (12 色) を選ぶ純粋ロジック。
+//! `world_id` ベースで色を `mira_world_colors` に保存することで、ワールド名が変わっても
+//! 同じワールドに同じ色が当たり続けるよう設計されている (永続化は呼び出し側の責務)。
+
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -18,13 +22,15 @@ const PALETTE: [(u8, u8, u8); 12] = [
     (100, 140, 170), // steel blue
 ];
 
-/// world_name から決定論的に "#rrggbb" 形式の色を生成する。
-/// DefaultHasher は環境毎に異なる seed を持つが、同一プロセス内では同じ入力に同じ出力を返す。
-/// 永続化は呼び出し側 (journal::get_or_generate_world_color) が mira_world_colors に保存する責務。
+/// `world_name` から決定論的に "#rrggbb" 形式の色を生成する。
+/// `DefaultHasher` は環境毎に異なる seed を持つが、同一プロセス内では同じ入力に同じ出力を返す。
+/// 永続化は呼び出し側 (`journal::get_or_generate_world_color`) が `mira_world_colors` に保存する責務。
 pub fn generate_color(world_name: &str) -> String {
     let mut hasher = DefaultHasher::new();
     world_name.hash(&mut hasher);
+    // PALETTE.len() == 12 のため剰余結果は常に 0..11 で usize に収まる
+    #[allow(clippy::cast_possible_truncation)]
     let idx = (hasher.finish() % PALETTE.len() as u64) as usize;
     let (r, g, b) = PALETTE[idx];
-    format!("#{:02x}{:02x}{:02x}", r, g, b)
+    format!("#{r:02x}{g:02x}{b:02x}")
 }

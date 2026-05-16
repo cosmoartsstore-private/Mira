@@ -1,7 +1,7 @@
 //! Mira バックエンドのエントリポイント。
 //! - DB 初期化 (Mira DB は書込可能、STELLA DB は読込専用で接続)
-//! - WebView2 のユーザーデータディレクトリを Mira の Data 配下に固定
-//! - 全 Tauri コマンドを invoke_handler に登録して起動
+//! - `WebView2` のユーザーデータディレクトリを Mira の Data 配下に固定
+//! - 全 Tauri コマンドを `invoke_handler` に登録して起動
 
 mod commands;
 mod db;
@@ -38,9 +38,17 @@ fn resolve_data_root() -> PathBuf {
 }
 
 /// Tauri アプリの起動本体。main.rs から 1 回だけ呼ばれる。
-/// DB を先に初期化して manage() で共有し、WebView2 のキャッシュ位置を環境変数で誘導してから起動する。
+/// DB を先に初期化して `manage()` で共有し、WebView2 のキャッシュ位置を環境変数で誘導してから起動する。
+/// 起動失敗は panic させず stderr に記録して正常 return することで、clippy の
+/// `unwrap_used` / `expect_used` / `panic` deny ポリシーを満たす。
 pub fn run() {
-    let db_state = db::initialize().expect("Failed to initialize databases");
+    let db_state = match db::initialize() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[FATAL] Mira DB の初期化に失敗しました: {e}");
+            return;
+        }
+    };
 
     // WebView2 のユーザーデータ (Cookie / キャッシュ) を Mira の Data 配下に固定し、
     // インストーラ/アンインストーラで一括管理できるようにする
@@ -51,7 +59,7 @@ pub fn run() {
         webview_data_dir.to_string_lossy().to_string(),
     );
 
-    tauri::Builder::default()
+    let result = tauri::Builder::default()
         .manage(db_state)
         .invoke_handler(tauri::generate_handler![
             commands::startup::get_startup_info,
@@ -78,6 +86,9 @@ pub fn run() {
             commands::stella::register_to_stellarecord,
             commands::stella::unregister_from_stellarecord,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    if let Err(err) = result {
+        eprintln!("[FATAL] Mira の起動に失敗しました: {err}");
+    }
 }

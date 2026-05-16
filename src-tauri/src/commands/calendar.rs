@@ -1,10 +1,11 @@
+//! カレンダー機能の `Tauri` コマンド群。月別アクティブ日一覧 + ユーザー予定 (`mira_scheduled_events`)
+//! の CRUD を提供する。週次繰り返し (`recurrence_kind = "weekly"`) のみ対応。
+
 use serde::Serialize;
 use tauri::State;
 
+use crate::commands::REMIND_MIN_MAX;
 use crate::db::DbState;
-
-/// remind_minutes_before に許容する上限 (24時間)
-const REMIND_MIN_MAX: i64 = 1440;
 
 /// 指定月のカレンダー表示用データ
 #[derive(Serialize)]
@@ -24,7 +25,7 @@ pub struct CalendarEvent {
     pub remind_minutes_before: i64,
 }
 
-/// 指定年月のアクティブ日 (STELLA の visit_summary に1件以上ある日) と Mira 側のユーザー予定を一括返却する。
+/// 指定年月のアクティブ日 (STELLA の `visit_summary` に1件以上ある日) と Mira 側のユーザー予定を一括返却する。
 /// STELLA 未接続 (Option None) ならアクティブ日を空配列で扱い、予定だけ返す。
 #[tauri::command]
 pub fn get_month_data(
@@ -32,10 +33,10 @@ pub fn get_month_data(
     year: u16,
     month: u8,
 ) -> Result<MonthData, String> {
-    let stella_guard = state.stella.lock().unwrap();
-    let mira = state.mira.lock().unwrap();
+    let stella_guard = crate::db::lock_stella(&state)?;
+    let mira = crate::db::lock_mira(&state)?;
 
-    let date_prefix = format!("{:04}-{:02}", year, month);
+    let date_prefix = format!("{year:04}-{month:02}");
 
     let active_days: Vec<u8> = match stella_guard.as_ref() {
         Some(stella) => {
@@ -50,7 +51,7 @@ pub fn get_month_data(
             let days = stmt
                 .query_map([&date_prefix], |row| row.get(0))
                 .map_err(|e| e.to_string())?
-                .filter_map(|r| r.ok())
+                .filter_map(std::result::Result::ok)
                 .collect();
             days
         }
@@ -78,7 +79,7 @@ pub fn get_month_data(
             })
         })
         .map_err(|e| e.to_string())?
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .collect();
 
     Ok(MonthData {
@@ -92,11 +93,11 @@ pub fn get_month_data(
 /// 新しい予定イベントを追加し、挿入されたIDを返す
 ///
 /// 仕様メモ (R2-M-1):
-///   週次繰り返し (recurrence_kind="weekly") は scheduled_at の曜日を 1 つだけ採用し、
+///   週次繰り返し (`recurrence_kind="weekly`") は `scheduled_at` の曜日を 1 つだけ採用し、
 ///   毎週その曜日 + 時刻に発火する。複数曜日指定 (例: 月水金) は現状未対応で、
 ///   利用側は曜日ごとに別予定を登録する必要がある。
-///   将来 recurrence_weekdays カラムを追加する場合は migrations と
-///   startup.rs / reminder.rs の next_weekly_within_week / next_fire_today を
+///   将来 `recurrence_weekdays` カラムを追加する場合は migrations と
+///   startup.rs / reminder.rs の `next_weekly_within_week` / `next_fire_today` を
 ///   合わせて更新すること。
 #[tauri::command]
 pub fn add_event(
@@ -111,21 +112,20 @@ pub fn add_event(
     if chrono::NaiveDateTime::parse_from_str(&scheduled_at, "%Y-%m-%d %H:%M:%S").is_err()
         && chrono::NaiveDateTime::parse_from_str(&scheduled_at, "%Y-%m-%d %H:%M").is_err()
     {
-        return Err(format!("invalid scheduled_at format: {}", scheduled_at));
+        return Err(format!("invalid scheduled_at format: {scheduled_at}"));
     }
 
     // remind_minutes_before は 0..=1440 に制限 (負値・極端値の混入を防止)
-    if remind_minutes_before < 0 || remind_minutes_before > REMIND_MIN_MAX {
+    if !(0..=REMIND_MIN_MAX).contains(&remind_minutes_before) {
         return Err(format!(
-            "remind_minutes_before must be in 0..={}, got {}",
-            REMIND_MIN_MAX, remind_minutes_before
+            "remind_minutes_before must be in 0..={REMIND_MIN_MAX}, got {remind_minutes_before}"
         ));
     }
 
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let recurring_flag = is_recurring.unwrap_or(false);
-    let recurring_int: i64 = if recurring_flag { 1 } else { 0 };
+    let recurring_int: i64 = i64::from(recurring_flag);
     let kind = if recurring_flag {
         recurrence_kind.or_else(|| Some("weekly".to_string()))
     } else {
@@ -145,7 +145,7 @@ pub fn add_event(
 /// 指定 ID の予定イベントを物理削除する (履歴は残さない)
 #[tauri::command]
 pub fn remove_event(state: State<'_, DbState>, id: i64) -> Result<(), String> {
-    let mira = state.mira.lock().unwrap();
+    let mira = crate::db::lock_mira(&state)?;
     mira.execute("DELETE FROM mira_scheduled_events WHERE id = ?1", [id])
         .map_err(|e| e.to_string())?;
     Ok(())

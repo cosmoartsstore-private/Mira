@@ -955,8 +955,6 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     prevBtn.addEventListener("click", (e) => { e.stopPropagation(); current--; update(); });
     nextBtn.addEventListener("click", (e) => { e.stopPropagation(); current++; update(); });
 
-    let closed = false;
-
     // ライトボックスを閉じてイベントリスナーを解除する
     let closed = false;
     function close(): void {
