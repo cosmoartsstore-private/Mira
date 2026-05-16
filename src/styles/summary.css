@@ -3,13 +3,13 @@
   position: fixed;
   inset: 0;
   z-index: 300;
-  background: rgba(244, 237, 224, 0);
+  background: rgb(244 237 224 / 0%);
   transition: background 0.6s;
   pointer-events: none;
 }
 
 .summary-overlay.visible {
-  background: rgba(244, 237, 224, 0.92);
+  background: rgb(244 237 224 / 92%);
   pointer-events: auto;
 }
 
@@ -26,80 +26,112 @@
   pointer-events: none;
   line-height: 0;
   animation:
-    petalPath var(--dur, 7s) linear forwards,
-    petalSpin var(--dur, 7s) linear forwards,
-    petalWobble 1.2s ease-in-out infinite alternate;
+    petal-path var(--dur, 7s) linear forwards,
+    petal-spin var(--dur, 7s) linear forwards,
+    petal-wobble 1.2s ease-in-out infinite alternate;
   will-change: transform, left, top;
 }
 
-@keyframes petalPath {
+@keyframes petal-path {
   0% {
     left: calc(100vw + 40px);
     top: var(--start-y, 15vh);
   }
+
   15% {
     left: 75vw;
     top: var(--mid-y, 45vh);
   }
+
   30% {
     left: calc(var(--loop-cx, 50vw) + var(--loop-r, 6vw));
     top: var(--loop-y, 35vh);
   }
+
   42% {
     left: var(--loop-cx, 50vw);
     top: calc(var(--loop-y, 35vh) + var(--loop-r, 6vw));
   }
+
   54% {
     left: calc(var(--loop-cx, 50vw) - var(--loop-r, 6vw));
     top: var(--loop-y, 35vh);
   }
+
   66% {
     left: var(--loop-cx, 50vw);
     top: calc(var(--loop-y, 35vh) - var(--loop-r, 6vw));
   }
+
   80% {
     left: 20vw;
     top: var(--end-y, 70vh);
   }
+
   100% {
     left: -60px;
     top: var(--end-y, 70vh);
   }
 }
 
-@keyframes petalSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(var(--spin, 1080deg)); }
+@keyframes petal-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(var(--spin, 1080deg));
+  }
 }
 
-@keyframes petalWobble {
-  from { margin-top: calc(var(--wobble, 15px) * -0.5); }
-  to { margin-top: calc(var(--wobble, 15px) * 0.5); }
+@keyframes petal-wobble {
+  from {
+    margin-top: calc(var(--wobble, 15px) * -0.5);
+  }
+
+  to {
+    margin-top: calc(var(--wobble, 15px) * 0.5);
+  }
 }
 
 /* ===== Snow — falls from top ===== */
 .summary-petal.snow {
   animation:
-    snowFall var(--dur, 7s) linear forwards,
-    snowSpin var(--dur, 7s) linear forwards,
-    snowDrift 2s ease-in-out infinite alternate;
+    snow-fall var(--dur, 7s) linear forwards,
+    snow-spin var(--dur, 7s) linear forwards,
+    snow-drift 2s ease-in-out infinite alternate;
   left: var(--start-x, 50vw);
   top: -30px;
 }
 
-@keyframes snowFall {
-  from { top: -30px; }
-  to { top: calc(100vh + 30px); }
+@keyframes snow-fall {
+  from {
+    top: -30px;
+  }
+
+  to {
+    top: calc(100vh + 30px);
+  }
 }
 
-@keyframes snowSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(var(--spin, 360deg)); }
+@keyframes snow-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(var(--spin, 360deg));
+  }
 }
 
-@keyframes snowDrift {
-  from { margin-left: calc(var(--drift, 20px) * -0.5); }
-  to { margin-left: calc(var(--drift, 20px) * 0.5); }
+@keyframes snow-drift {
+  from {
+    margin-left: calc(var(--drift, 20px) * -0.5);
+  }
+
+  to {
+    margin-left: calc(var(--drift, 20px) * 0.5);
+  }
 }
 
 /* ===== Summary Content ===== */
@@ -110,13 +142,13 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  opacity: 0;
+  opacity: 0%;
   transition: opacity 0.8s 0.5s;
   pointer-events: none;
 }
 
 .summary-overlay.visible .summary-content {
-  opacity: 1;
+  opacity: 100%;
   pointer-events: auto;
 }
 

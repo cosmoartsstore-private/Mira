@@ -7,17 +7,25 @@ interface SnapshotData {
 }
 
 const SEASON_LEAVES: Record<Season, string> = {
-  spring: '<path d="M 30 8 C 22 14 18 24 22 32 C 26 40 30 50 30 50 C 30 50 34 40 38 32 C 42 24 38 14 30 8 Z" fill="#f4b8c8" stroke="#d28aa6" stroke-width="0.8"/><path d="M 30 18 L 30 46" stroke="#c8758a" stroke-width="0.5" opacity="0.5"/>',
-  summer: '<path d="M 30 8 C 16 12 10 24 14 36 C 18 44 26 50 30 52 C 34 50 42 44 46 36 C 50 24 44 12 30 8 Z" fill="#9bc97a" stroke="#5e8c3e" stroke-width="0.8"/><path d="M 30 12 L 30 50" stroke="#3e6a26" stroke-width="0.6" opacity="0.6"/>',
-  autumn: '<path d="M 30 8 L 35 14 L 42 14 L 38 22 L 48 22 L 42 30 L 50 36 L 40 38 L 42 48 L 32 42 L 30 52 L 28 42 L 18 48 L 20 38 L 10 36 L 18 30 L 12 22 L 22 22 L 18 14 L 25 14 Z" fill="#d4753a" stroke="#a0461e" stroke-width="0.8"/>',
-  winter: '<g transform="translate(30 30)"><path d="M 0 -22 L 0 22 M -22 0 L 22 0 M -16 -16 L 16 16 M -16 16 L 16 -16" stroke="#a8c8e8" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="0" cy="0" r="3" fill="#e0eef8"/></g>',
+  spring:
+    '<path d="M 30 8 C 22 14 18 24 22 32 C 26 40 30 50 30 50 C 30 50 34 40 38 32 C 42 24 38 14 30 8 Z" fill="#f4b8c8" stroke="#d28aa6" stroke-width="0.8"/><path d="M 30 18 L 30 46" stroke="#c8758a" stroke-width="0.5" opacity="0.5"/>',
+  summer:
+    '<path d="M 30 8 C 16 12 10 24 14 36 C 18 44 26 50 30 52 C 34 50 42 44 46 36 C 50 24 44 12 30 8 Z" fill="#9bc97a" stroke="#5e8c3e" stroke-width="0.8"/><path d="M 30 12 L 30 50" stroke="#3e6a26" stroke-width="0.6" opacity="0.6"/>',
+  autumn:
+    '<path d="M 30 8 L 35 14 L 42 14 L 38 22 L 48 22 L 42 30 L 50 36 L 40 38 L 42 48 L 32 42 L 30 52 L 28 42 L 18 48 L 20 38 L 10 36 L 18 30 L 12 22 L 22 22 L 18 14 L 25 14 Z" fill="#d4753a" stroke="#a0461e" stroke-width="0.8"/>',
+  winter:
+    '<g transform="translate(30 30)"><path d="M 0 -22 L 0 22 M -22 0 L 22 0 M -16 -16 L 16 16 M -16 16 L 16 -16" stroke="#a8c8e8" stroke-width="2" stroke-linecap="round" fill="none"/><circle cx="0" cy="0" r="3" fill="#e0eef8"/></g>',
 };
 
 const SEASON_BG: Record<Season, string> = {
-  spring: "linear-gradient(180deg, rgba(255, 220, 235, 0.18), rgba(255, 230, 240, 0.05)), var(--paper)",
-  summer: "linear-gradient(180deg, rgba(180, 230, 200, 0.18), rgba(220, 240, 220, 0.05)), var(--paper)",
-  autumn: "linear-gradient(180deg, rgba(255, 200, 150, 0.20), rgba(255, 220, 180, 0.06)), var(--paper)",
-  winter: "radial-gradient(ellipse at top, rgba(212, 154, 74, 0.15), transparent 50%), radial-gradient(ellipse at bottom, rgba(139, 107, 155, 0.1), transparent 50%), var(--paper)",
+  spring:
+    "linear-gradient(180deg, rgba(255, 220, 235, 0.18), rgba(255, 230, 240, 0.05)), var(--paper)",
+  summer:
+    "linear-gradient(180deg, rgba(180, 230, 200, 0.18), rgba(220, 240, 220, 0.05)), var(--paper)",
+  autumn:
+    "linear-gradient(180deg, rgba(255, 200, 150, 0.20), rgba(255, 220, 180, 0.06)), var(--paper)",
+  winter:
+    "radial-gradient(ellipse at top, rgba(212, 154, 74, 0.15), transparent 50%), radial-gradient(ellipse at bottom, rgba(139, 107, 155, 0.1), transparent 50%), var(--paper)",
 };
 
 // 現在月から季節を分類する（3-5=春, 6-8=夏, 9-11=秋, それ以外=冬）
@@ -100,7 +108,10 @@ export function playSnapshot(data?: SnapshotData): void {
   const letter = document.createElement("div");
   letter.className = "unfolded-letter";
   const statsHtml = stats
-    .map((s) => `<div class="stat-row"><div class="label">${s.label}</div><div class="value">${s.value}</div></div>`)
+    .map(
+      (s) =>
+        `<div class="stat-row"><div class="label">${s.label}</div><div class="value">${s.value}</div></div>`,
+    )
     .join("");
   letter.innerHTML = `
     <div class="letter-body">
@@ -121,7 +132,7 @@ export function playSnapshot(data?: SnapshotData): void {
   stage.appendChild(closeHint);
 
   document.body.appendChild(stage);
-  runAnimation(stage, leaf, notify, envWrap, letter, closeHint);
+  void runAnimation(stage, leaf, notify, envWrap, letter, closeHint);
 }
 
 // フェーズ駆動の演出本体。各フェーズ間の await wait(ms) で CSS class を1つずつ追加し、
@@ -132,7 +143,7 @@ async function runAnimation(
   notify: HTMLElement,
   envWrap: HTMLElement,
   letter: HTMLElement,
-  closeHint: HTMLElement
+  closeHint: HTMLElement,
 ): Promise<void> {
   // Phase 1: Leaf flies
   await wait(200);
@@ -143,7 +154,7 @@ async function runAnimation(
   notify.classList.add("show");
 
   // Phase 3: Notification text writing
-  const textEl = notify.querySelector(".env-letter-text") as HTMLElement;
+  const textEl = notify.querySelector(".env-letter-text")!;
   textEl.classList.add("writing");
 
   // Phase 4: Notification fades, envelope appears

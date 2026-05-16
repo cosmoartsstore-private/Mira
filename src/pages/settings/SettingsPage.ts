@@ -1,6 +1,12 @@
 import { settings, stellaConnected, Subscriptions } from "../../state/store";
-import { setSetting, setViewHourRange, getSettings, unregisterFromStellarecord } from "../../api/commands";
+import {
+  setSetting,
+  setViewHourRange,
+  getSettings,
+  unregisterFromStellarecord,
+} from "../../api/commands";
 import { showToast } from "../../utils/toast";
+import { errMessage } from "../../utils/html";
 import { playVoiceFile } from "../../services/reminder";
 
 // 設定画面。フォント・通知音・VOICEVOX 話者を変更すると DB + ストア双方を即時更新する。
@@ -18,41 +24,73 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
 
   // Font section
   const fontSection = createSection("メモ書体");
-  fontSection.appendChild(createSelectRow("書体", "font-select", [
-    { value: "Yomogi", label: "Yomogi" },
-    { value: "Yusei Magic", label: "Yusei Magic" },
-    { value: "Kiwi Maru", label: "Kiwi Maru" },
-    { value: "Hachi Maru Pop", label: "Hachi Maru Pop" },
-  ], s.font_family));
+  fontSection.appendChild(
+    createSelectRow(
+      "書体",
+      "font-select",
+      [
+        { value: "Yomogi", label: "Yomogi" },
+        { value: "Yusei Magic", label: "Yusei Magic" },
+        { value: "Kiwi Maru", label: "Kiwi Maru" },
+        { value: "Hachi Maru Pop", label: "Hachi Maru Pop" },
+      ],
+      s.font_family,
+    ),
+  );
   // 書体適用範囲 (font_scope)
-  fontSection.appendChild(createKeyedToggleRow("書体適用範囲", "font_scope", [
-    { value: "content_only", label: "メモのみ" },
-    { value: "all", label: "アプリ全体" },
-  ], s.font_scope || "content_only"));
+  fontSection.appendChild(
+    createKeyedToggleRow(
+      "書体適用範囲",
+      "font_scope",
+      [
+        { value: "content_only", label: "メモのみ" },
+        { value: "all", label: "アプリ全体" },
+      ],
+      s.font_scope || "content_only",
+    ),
+  );
   container.appendChild(fontSection);
 
   // Display section
   // detect_activity_range が 24 を超え 30 まで返し得るため UI 上限も 30 に拡張する
   const displaySection = createSection("表示");
-  displaySection.appendChild(createBoolToggleRowKeyed("ページ遷移アニメーション", "transition_enabled", s.transition_enabled));
-  displaySection.appendChild(createNumberRow("タイムライン開始時 (0-29)", "view-hour-start", s.view_hour_start, 0, 29));
-  displaySection.appendChild(createNumberRow("タイムライン終了時 (1-30)", "view-hour-end", s.view_hour_end, 1, 30));
+  displaySection.appendChild(
+    createBoolToggleRowKeyed(
+      "ページ遷移アニメーション",
+      "transition_enabled",
+      s.transition_enabled,
+    ),
+  );
+  displaySection.appendChild(
+    createNumberRow("タイムライン開始時 (0-29)", "view-hour-start", s.view_hour_start, 0, 29),
+  );
+  displaySection.appendChild(
+    createNumberRow("タイムライン終了時 (1-30)", "view-hour-end", s.view_hour_end, 1, 30),
+  );
   container.appendChild(displaySection);
 
   // Memo section
   const memoSection = createSection("メモ");
-  memoSection.appendChild(createNumberRow("メモ最大文字数", "memo-max-length", s.memo_max_length, 100, 10000));
+  memoSection.appendChild(
+    createNumberRow("メモ最大文字数", "memo-max-length", s.memo_max_length, 100, 10000),
+  );
   container.appendChild(memoSection);
 
   // Review section
   const reviewSection = createSection("レビュー");
-  reviewSection.appendChild(createBoolToggleRowKeyed("スナップショット表示", "snapshot_enabled", s.snapshot_enabled));
+  reviewSection.appendChild(
+    createBoolToggleRowKeyed("スナップショット表示", "snapshot_enabled", s.snapshot_enabled),
+  );
   container.appendChild(reviewSection);
 
   // Reminder section
   const reminderSection = createSection("リマインダー");
-  reminderSection.appendChild(createBoolToggleRowKeyed("通知音", "reminder_sound_enabled", s.reminder_sound_enabled));
-  reminderSection.appendChild(createBoolToggleRowKeyed("VOICEVOX 読み上げ", "voicevox_enabled", s.voicevox_enabled));
+  reminderSection.appendChild(
+    createBoolToggleRowKeyed("通知音", "reminder_sound_enabled", s.reminder_sound_enabled),
+  );
+  reminderSection.appendChild(
+    createBoolToggleRowKeyed("VOICEVOX 読み上げ", "voicevox_enabled", s.voicevox_enabled),
+  );
 
   const VOICE_CHARACTERS = [
     { value: "metan", label: "四国めたん" },
@@ -97,7 +135,7 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
     } catch (err) {
       // 保存失敗時は select の表示を元に戻す
       charSelect.value = prev;
-      showToast({ title: "話者設定の保存に失敗しました", body: String(err), kind: "error" });
+      showToast({ title: "話者設定の保存に失敗しました", body: errMessage(err), kind: "error" });
     }
   });
 
@@ -126,7 +164,7 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
       stellaConnected.set(false);
       integrationStatus.textContent = "未接続";
     } catch (err) {
-      showToast({ title: "連携解除に失敗しました", body: String(err), kind: "error" });
+      showToast({ title: "連携解除に失敗しました", body: errMessage(err), kind: "error" });
     }
   });
   const integrationWrap = document.createElement("div");
@@ -147,7 +185,7 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
   profileCard.className = "creator-profile";
   profileCard.innerHTML = `
     <div class="creator-top">
-      <img class="creator-avatar" src="${new URL('../../assets/avatar.jpg', import.meta.url).href}" alt="ぷらねっと" />
+      <img class="creator-avatar" src="${new URL("../../assets/avatar.jpg", import.meta.url).href}" alt="ぷらねっと" />
       <div class="creator-name">ぷらねっと</div>
     </div>
     <div class="creator-links">
@@ -224,7 +262,7 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
   container.appendChild(bottomRow);
 
   // Event handlers
-  const fontSelect = container.querySelector("#font-select") as HTMLSelectElement;
+  const fontSelect = container.querySelector<HTMLSelectElement>("#font-select")!;
   fontSelect.addEventListener("change", async () => {
     const prev = settings.get().font_family || "Yomogi";
     try {
@@ -232,7 +270,7 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
       await refreshSettings();
     } catch (err) {
       fontSelect.value = prev;
-      showToast({ title: "書体設定の保存に失敗しました", body: String(err), kind: "error" });
+      showToast({ title: "書体設定の保存に失敗しました", body: errMessage(err), kind: "error" });
     }
   });
 
@@ -303,7 +341,7 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
             if (prevOn) prevOn.classList.add("on");
             showToast({
               title: "設定の保存に失敗しました",
-              body: String(err),
+              body: errMessage(err),
               kind: "error",
             });
           }
@@ -329,7 +367,12 @@ function createSection(title: string): HTMLElement {
 }
 
 // ラベル + <select> の 1 行を組み立てる。current と一致するオプションを selected にする
-function createSelectRow(label: string, id: string, options: { value: string; label: string }[], current: string): HTMLElement {
+function createSelectRow(
+  label: string,
+  id: string,
+  options: { value: string; label: string }[],
+  current: string,
+): HTMLElement {
   const row = document.createElement("div");
   row.className = "setting-row";
   row.innerHTML = `<span class="label">${label}</span>`;
@@ -347,7 +390,12 @@ function createSelectRow(label: string, id: string, options: { value: string; la
 }
 
 // 任意キーでの文字列トグル付きの設定行を生成する
-function createKeyedToggleRow(label: string, key: string, options: { value: string; label: string }[], current: string): HTMLElement {
+function createKeyedToggleRow(
+  label: string,
+  key: string,
+  options: { value: string; label: string }[],
+  current: string,
+): HTMLElement {
   const row = document.createElement("div");
   row.className = "setting-row";
   row.innerHTML = `<span class="label">${label}</span>`;
@@ -391,7 +439,13 @@ function createBoolToggleRowKeyed(label: string, key: string, current: boolean):
 }
 
 // 数値入力付きの設定行を生成する
-function createNumberRow(label: string, id: string, current: number, min: number, max: number): HTMLElement {
+function createNumberRow(
+  label: string,
+  id: string,
+  current: number,
+  min: number,
+  max: number,
+): HTMLElement {
   const row = document.createElement("div");
   row.className = "setting-row";
   row.innerHTML = `<span class="label">${label}</span>`;
@@ -445,11 +499,13 @@ function confirmDialog(message: string): Promise<boolean> {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "mira-confirm-overlay";
-    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;";
+    overlay.style.cssText =
+      "position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;";
 
     const card = document.createElement("div");
     card.className = "mira-confirm-card";
-    card.style.cssText = "background:#fff;color:#222;padding:20px 24px;border-radius:8px;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.25);font-family:inherit;";
+    card.style.cssText =
+      "background:#fff;color:#222;padding:20px 24px;border-radius:8px;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.25);font-family:inherit;";
 
     const msg = document.createElement("div");
     msg.className = "mira-confirm-msg";

@@ -1,19 +1,14 @@
-/* Transition cover additional styling handled via Web Animations API */
-/* This file holds keyframe definitions for CSS-only animations */
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+/* CSS-only な汎用 keyframe 定義。`pulse` 以外 (旧 `fadeIn`/`slideUp`) は未参照だったため撤去。 */
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 40%;
+  }
+
+  50% {
+    opacity: 100%;
+  }
 }
 
 .loading {

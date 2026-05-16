@@ -1,5 +1,12 @@
 import { getMonthData, addEvent, removeEvent, refreshNotifications } from "../../api/commands";
-import { currentMonth, activeTab, currentWeekStart, focusedDate, notifications, Subscriptions } from "../../state/store";
+import {
+  currentMonth,
+  activeTab,
+  currentWeekStart,
+  focusedDate,
+  notifications,
+  Subscriptions,
+} from "../../state/store";
 import { getJapaneseHolidays } from "../../utils/holidays";
 import { confirmDialog } from "../../utils/confirmDialog";
 import { showToast } from "../../utils/toast";
@@ -42,7 +49,8 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
 
   const legend = document.createElement("div");
   legend.className = "cal-legend";
-  legend.innerHTML = '活動した日<span class="legend-dot"></span>・ 祝日<span class="legend-dot holiday"></span>・ 予定<span class="legend-dot event"></span>';
+  legend.innerHTML =
+    '活動した日<span class="legend-dot"></span>・ 祝日<span class="legend-dot holiday"></span>・ 予定<span class="legend-dot event"></span>';
 
   container.appendChild(pageHead);
   container.appendChild(monthNav);
@@ -52,7 +60,20 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
   // 上部の年・月ラベル ("2026 Apr" のような表示) を currentMonth の値で更新する
   function updateLabel(): void {
     const { year, month } = currentMonth.get();
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     monthLabel.innerHTML = `<span class="year">${year}</span>${monthNames[month - 1]}`;
   }
 
@@ -74,11 +95,18 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
     try {
       const list = await refreshNotifications();
       notifications.set(list);
-    } catch { /* */ }
+    } catch {
+      /* */
+    }
   }
 
   // カレンダーグリッドに日付セルを描画する
-  function renderGrid(year: number, month: number, activeDays: number[], events: CalendarEvent[]): void {
+  function renderGrid(
+    year: number,
+    month: number,
+    activeDays: number[],
+    events: CalendarEvent[],
+  ): void {
     grid.innerHTML = "";
     const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     for (const wd of weekdays) {
@@ -109,7 +137,8 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
     const eventsByDay = new Map<number, CalendarEvent[]>();
     for (const evt of events) {
       const dayPart = evt.scheduled_at.split(/[-T ]/)[2];
-      const day = parseInt(dayPart ?? "", 10);
+      if (!dayPart) continue;
+      const day = parseInt(dayPart, 10);
       if (Number.isNaN(day)) continue;
       if (!eventsByDay.has(day)) eventsByDay.set(day, []);
       eventsByDay.get(day)!.push(evt);
@@ -123,7 +152,7 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
       const holidayName = holidayMap.get(d);
       const date = new Date(year, month - 1, d);
       const dow = date.getDay();
-      const dayEvents = eventsByDay.get(d) || [];
+      const dayEvents = eventsByDay.get(d) ?? [];
 
       if (!isActive && !holidayName && dayEvents.length === 0) cell.classList.add("no-data");
       if (dow === 0) cell.classList.add("sunday");
@@ -236,7 +265,9 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
       if (!title) return;
       const time = popup.querySelector<HTMLInputElement>(".cal-popup-time")!.value;
       const remind = Number(popup.querySelector<HTMLSelectElement>(".cal-popup-remind")!.value);
-      const isRecurring = popup.querySelector<HTMLInputElement>(".cal-popup-recurring-input")!.checked;
+      const isRecurring = popup.querySelector<HTMLInputElement>(
+        ".cal-popup-recurring-input",
+      )!.checked;
       const scheduledAt = `${date} ${time}:00`;
       try {
         await addEvent(title, scheduledAt, remind, isRecurring, isRecurring ? "weekly" : null);
@@ -315,8 +346,8 @@ export function CalendarPage(subs: Subscriptions): HTMLElement {
     document.querySelectorAll(".cal-popup").forEach((p) => p.remove());
   }
 
-  subs.add(currentMonth.subscribe(loadMonth));
-  loadMonth();
+  subs.add(currentMonth.subscribe(() => void loadMonth()));
+  void loadMonth();
 
   return container;
 }
@@ -335,4 +366,3 @@ function shiftMonth(offset: number): void {
   }
   currentMonth.set({ year: newYear, month: newMonth });
 }
-

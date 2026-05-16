@@ -50,4 +50,3 @@ export function showStartupReminder(notifs: ScheduleNotification[]): void {
     setTimeout(() => el.remove(), 400);
   }
 }
-

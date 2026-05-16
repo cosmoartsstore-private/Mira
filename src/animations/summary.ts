@@ -83,14 +83,20 @@ export function playSummaryAnimation(overrideMonth?: number): void {
   const initialBurst = isSnow ? 25 : 14;
 
   for (let i = 0; i < initialBurst; i++) {
-    setTimeout(() => {
-      if (!overlay.parentNode) return;
-      spawnPetal(canvas, season);
-    }, i * (isSnow ? 150 : 300) + Math.random() * 150);
+    setTimeout(
+      () => {
+        if (!overlay.parentNode) return;
+        spawnPetal(canvas, season);
+      },
+      i * (isSnow ? 150 : 300) + Math.random() * 150,
+    );
   }
 
   const interval = setInterval(() => {
-    if (!overlay.parentNode) { clearInterval(interval); return; }
+    if (!overlay.parentNode) {
+      clearInterval(interval);
+      return;
+    }
     spawnPetal(canvas, season);
   }, spawnInterval);
 

@@ -38,8 +38,9 @@ pub fn run(conn: &Connection) -> Result<()> {
         );
 
         -- is_custom: ユーザーがワールド色を手動変更したか (将来 UI 用予約フラグ、現状は常に 0)
+        -- R2-M-26: world_name を主キーとする (StellaRecord 側に wrld_xxx を一意保存する経路が無い)
         CREATE TABLE IF NOT EXISTS mira_world_colors (
-            world_id    TEXT PRIMARY KEY,
+            world_name  TEXT PRIMARY KEY,
             color_hex   TEXT NOT NULL,
             is_custom   BOOLEAN NOT NULL DEFAULT 0 CHECK (is_custom IN (0, 1))
         );
@@ -73,6 +74,21 @@ pub fn run(conn: &Connection) -> Result<()> {
     drop_column_if_exists(conn, "mira_journal_entries", "template_id")?;
     drop_column_if_exists(conn, "mira_journal_entries", "generated_summary")?;
     drop_column_if_exists(conn, "mira_scheduled_events", "description")?;
+    // R2-M-26: mira_world_colors の主キーを world_id → world_name に切替 (2026-05-17)
+    // 旧スキーマで `world_id` 列を持っているなら一旦テーブルごと作り直す
+    // (色は使い込めばまた生成されるためデータ移行は不要)
+    if column_exists(conn, "mira_world_colors", "world_id")? {
+        conn.execute_batch(
+            "
+            DROP TABLE mira_world_colors;
+            CREATE TABLE mira_world_colors (
+                world_name  TEXT PRIMARY KEY,
+                color_hex   TEXT NOT NULL,
+                is_custom   BOOLEAN NOT NULL DEFAULT 0 CHECK (is_custom IN (0, 1))
+            );
+            ",
+        )?;
+    }
 
     // R2-M-11: 既存カラム確認を個別に行い、ALTER 1 本ずつを直接実行する。
     // ALTER TABLE は SQLite では DDL として自動コミットされるため

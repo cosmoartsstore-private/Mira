@@ -29,14 +29,13 @@
 .debug-output {
   background: #1a1a1a;
   color: #e0e0e0;
-  font-family: "Consolas", "SF Mono", monospace;
+  font-family: Consolas, "SF Mono", monospace;
   font-size: 12px;
   line-height: 1.5;
   padding: 14px 16px;
   border-radius: 4px;
-  overflow-x: auto;
+  overflow: auto;
   max-height: 300px;
-  overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
   user-select: text;
@@ -52,7 +51,7 @@
 .debug-btn {
   padding: 6px 12px;
   font-size: 11px;
-  font-family: "Consolas", "SF Mono", monospace;
+  font-family: Consolas, "SF Mono", monospace;
   background: var(--paper);
   border: 1px solid var(--rule);
   color: var(--ink-soft);

@@ -98,7 +98,7 @@ export async function addManualMarker(
   date: string,
   start: number,
   end: number,
-  color: string
+  color: string,
 ): Promise<number> {
   return invoke("add_manual_marker", { date, start, end, color });
 }
@@ -113,8 +113,8 @@ export async function addEvent(
   title: string,
   scheduledAt: string,
   remindMinutesBefore: number,
-  isRecurring: boolean = false,
-  recurrenceKind: string | null = null
+  isRecurring = false,
+  recurrenceKind: string | null = null,
 ): Promise<number> {
   return invoke("add_event", {
     title,

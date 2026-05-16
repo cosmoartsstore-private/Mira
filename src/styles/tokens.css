@@ -7,28 +7,22 @@
   --ink-soft: #4a3d2e;
   --ink-faint: #7a6a55;
   --ink-mute: #a89880;
-
   --dusk-orange: #c8633a;
   --dusk-red: #8e3528;
   --dusk-gold: #d49a4a;
   --dusk-pink: #d28aa6;
-
   --night-indigo: #2d3a5c;
   --night-deep: #1a2138;
-
   --rule: #c9b896;
-
-  --marker-world: rgba(212, 154, 74, 0.35);
-  --marker-person: rgba(210, 138, 166, 0.35);
-  --marker-video: rgba(108, 138, 178, 0.35);
-
+  --marker-world: rgb(212 154 74 / 35%);
+  --marker-person: rgb(210 138 166 / 35%);
+  --marker-video: rgb(108 138 178 / 35%);
   --ui-font: "Noto Sans JP", sans-serif;
   --content-font: "Yomogi", sans-serif;
   --memo-font: "Yomogi", sans-serif;
   --settings-font: "Kiwi Maru", sans-serif;
   --logo-font: "Allura", cursive;
   --heading-font: "Cormorant Garamond", serif;
-
   --transition-duration: 480ms;
   --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
 }

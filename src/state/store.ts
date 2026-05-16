@@ -73,9 +73,7 @@ export const activeTab = new Store<TabId>("home");
 export const focusedDate = new Store<string | null>(null);
 
 // 表示中の週の開始日（日曜日、YYYY-MM-DD）。DEV では固定日でデータが見えるようにしてある。
-export const currentWeekStart = new Store<string>(
-  import.meta.env.DEV ? "2026-04-19" : getMonday()
-);
+export const currentWeekStart = new Store<string>(import.meta.env.DEV ? "2026-04-19" : getMonday());
 
 // CalendarPage で表示中の年月
 export const currentMonth = new Store<{ year: number; month: number }>({
@@ -107,7 +105,7 @@ export const notifications = new Store<ScheduleNotification[]>([]);
 // ページ単位の購読解除をまとめて行うためのコレクター。
 // 各ページコンポーネントは subs を受け取り、unmount 時に app.ts が dispose() する。
 export class Subscriptions {
-  private unsubs: Array<() => void> = [];
+  private unsubs: (() => void)[] = [];
 
   // 解除関数を1つ登録する
   add(unsub: () => void): void {

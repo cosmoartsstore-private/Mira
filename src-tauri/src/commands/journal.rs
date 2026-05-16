@@ -27,9 +27,12 @@ pub struct VisitPlayer {
 }
 
 /// ワールド訪問ブロック（タイムライン表示用）
+///
+/// R2-M-26: `StellaRecord` の `visit_summary` ビューは `world_id` (`wrld_xxx`) を
+/// 保持していない (`visits` テーブル自体に列が無い) ため、Mira は `world_name`
+/// 基準で色を固定する。ワールドが改名された場合は別ワールド扱いになる制約あり。
 #[derive(Serialize, Clone)]
 pub struct VisitBlock {
-    pub world_id: String,
     pub world_name: String,
     pub color_hex: String,
     pub start_hour: f32,
@@ -358,7 +361,7 @@ fn query_visits_for_date(
 ) -> Result<Vec<VisitBlock>, String> {
     let mut stmt = stella
         .prepare(
-            "SELECT world_id, world_name, join_time, leave_time, duration_sec
+            "SELECT world_name, join_time, leave_time, duration_sec
              FROM visit_summary
              WHERE date(join_time) = ?1
              ORDER BY join_time",
@@ -367,11 +370,10 @@ fn query_visits_for_date(
 
     let visits = stmt
         .query_map([date], |row| {
-            let world_id: String = row.get(0)?;
-            let world_name: String = row.get(1)?;
-            let join_time: String = row.get(2)?;
-            let leave_time: Option<String> = row.get(3)?;
-            let duration_sec: u32 = row.get::<_, Option<u32>>(4)?.unwrap_or(0);
+            let world_name: String = row.get(0)?;
+            let join_time: String = row.get(1)?;
+            let leave_time: Option<String> = row.get(2)?;
+            let duration_sec: u32 = row.get::<_, Option<u32>>(3)?.unwrap_or(0);
 
             let start_hour = parse_hour_fraction(&join_time);
             // R2-M-16: leave_time が NULL かつ duration_sec=0 だと end==start となり
@@ -404,15 +406,14 @@ fn query_visits_for_date(
                 parse_hour_fraction,
             );
 
-            Ok((world_id, world_name, start_hour, end_hour, duration_sec / 60))
+            Ok((world_name, start_hour, end_hour, duration_sec / 60))
         })
         .map_err(|e| e.to_string())?
         .filter_map(std::result::Result::ok)
-        .map(|(world_id, world_name, start_hour, end_hour, duration_min)| {
-            // R2-M-9: world_id ベースで色生成。world_name が変わっても色が固定される。
-            let color_hex = get_or_generate_world_color(mira, &world_id, &world_name);
+        .map(|(world_name, start_hour, end_hour, duration_min)| {
+            // R2-M-26: world_name ベースで色生成 (StellaRecord に world_id が無いため)
+            let color_hex = get_or_generate_world_color(mira, &world_name);
             VisitBlock {
-                world_id,
                 world_name,
                 color_hex,
                 start_hour,
@@ -537,26 +538,24 @@ fn attach_players_to_visits(
     }
 }
 
-// ワールドIDに対応する色を取得し、なければ生成して保存する
+// ワールド名に対応する色を取得し、なければ生成して保存する
 //
-// R2-M-9: world_id ベースで色を生成し、ワールド名変更時にも色が固定されるようにする。
-fn get_or_generate_world_color(
-    mira: &rusqlite::Connection,
-    world_id: &str,
-    _world_name: &str,
-) -> String {
+// R2-M-26: `world_name` ベースで色を固定する (`StellaRecord` の `visit_summary` ビューに
+// `world_id` 列が無いため)。ワールドが改名された場合は新規ワールド扱いとなり別の色になる
+// 制約があるが、StellaRecord 側の変更を避ける現状の妥協策。
+fn get_or_generate_world_color(mira: &rusqlite::Connection, world_name: &str) -> String {
     if let Ok(color) = mira.query_row(
-        "SELECT color_hex FROM mira_world_colors WHERE world_id = ?1",
-        [world_id],
+        "SELECT color_hex FROM mira_world_colors WHERE world_name = ?1",
+        [world_name],
         |row| row.get::<_, String>(0),
     ) {
         return color;
     }
 
-    let color = world_color::generate_color(world_id);
+    let color = world_color::generate_color(world_name);
     let _ = mira.execute(
-        "INSERT OR IGNORE INTO mira_world_colors (world_id, color_hex, is_custom) VALUES (?1, ?2, 0)",
-        rusqlite::params![world_id, &color],
+        "INSERT OR IGNORE INTO mira_world_colors (world_name, color_hex, is_custom) VALUES (?1, ?2, 0)",
+        rusqlite::params![world_name, &color],
     );
 
     color

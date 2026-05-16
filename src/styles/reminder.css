@@ -5,16 +5,18 @@
   z-index: 100;
   background: var(--card);
   border: 1px solid var(--paper-deep);
-  box-shadow: 0 8px 32px rgba(74, 61, 46, 0.15);
+  box-shadow: 0 8px 32px rgb(74 61 46 / 15%);
   padding: 18px 22px;
   max-width: 340px;
-  opacity: 0;
+  opacity: 0%;
   transform: translateY(-10px);
-  transition: opacity 0.4s, transform 0.4s;
+  transition:
+    opacity 0.4s,
+    transform 0.4s;
 }
 
 .startup-reminder.visible {
-  opacity: 1;
+  opacity: 100%;
   transform: translateY(0);
 }
 
@@ -38,7 +40,7 @@
 
 .reminder-item {
   padding: 7px 0;
-  border-bottom: 1px dotted rgba(201, 184, 150, 0.4);
+  border-bottom: 1px dotted rgb(201 184 150 / 40%);
   font-size: 15px;
   color: var(--ink);
   font-family: var(--content-font);

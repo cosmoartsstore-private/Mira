@@ -1,9 +1,31 @@
-import { getWeekLaneData, getDayFocusData, saveDayMemo, addManualMarker, removeManualMarker, getStartupInfo } from "../../api/commands";
+import {
+  getWeekLaneData,
+  getDayFocusData,
+  saveDayMemo,
+  addManualMarker,
+  removeManualMarker,
+  getStartupInfo,
+} from "../../api/commands";
 import { showToast } from "../../utils/toast";
-import { escapeHtml, escapeHtml as esc } from "../../utils/html";
+import { escapeHtml, escapeHtml as esc, errMessage } from "../../utils/html";
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { currentWeekStart, focusedDate, stellaConnected, settings, notifications, getMonday, Subscriptions } from "../../state/store";
-import type { WeekLaneData, DayFocusData, MarkerSpan, ManualMarker, PhotoEntry, VisitPlayer } from "../../state/types";
+import {
+  currentWeekStart,
+  focusedDate,
+  stellaConnected,
+  settings,
+  notifications,
+  getMonday,
+  Subscriptions,
+} from "../../state/store";
+import type {
+  WeekLaneData,
+  DayFocusData,
+  MarkerSpan,
+  ManualMarker,
+  PhotoEntry,
+  VisitPlayer,
+} from "../../state/types";
 
 // HomePage は 2 モードを切り替える単一ページ:
 //   - 週ビュー: 日曜始まり 7 日分のタイムラインレーン (currentWeekStart 駆動)
@@ -32,7 +54,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
           const info = await getStartupInfo();
           stellaConnected.set(info.stella_connected);
           notifications.set(info.pending_notifications);
-        } catch { /* */ }
+        } catch {
+          /* */
+        }
         retryBtn.disabled = false;
         retryBtn.textContent = "再接続";
       });
@@ -179,7 +203,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       const data: WeekLaneData = await getWeekLaneData(currentWeekStart.get());
       if (gen !== loadGen) return;
       renderLane(data);
-    } catch (e) {
+    } catch {
       if (gen !== loadGen) return;
       laneBody.innerHTML = `<div class="memo-empty" style="grid-column: 1/-1;">データの読み込みに失敗しました</div>`;
     }
@@ -194,8 +218,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
   function renderLane(data: WeekLaneData): void {
     // 設定の view_hour_start/end を優先してキャップする
     const s = settings.get();
-    const cfgStart = (s.view_hour_start ?? 0);
-    const cfgEnd = (s.view_hour_end ?? 24);
+    const cfgStart = s.view_hour_start;
+    const cfgEnd = s.view_hour_end;
     let hour_start = data.hour_start;
     let hour_end = data.hour_end;
     if (cfgEnd > cfgStart) {
@@ -299,7 +323,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
         badge.className = "lane-out-of-range";
         badge.textContent = `外 +${outOfRange}件`;
         badge.title = "タイムライン表示範囲外の訪問。設定で開始/終了時刻を変更すると表示できます。";
-        badge.style.cssText = "position:absolute;bottom:2px;right:2px;font-size:10px;padding:1px 4px;border-radius:3px;background:rgba(140,90,90,0.18);color:#a55;pointer-events:none;";
+        badge.style.cssText =
+          "position:absolute;bottom:2px;right:2px;font-size:10px;padding:1px 4px;border-radius:3px;background:rgba(140,90,90,0.18);color:#a55;pointer-events:none;";
         col.style.position = col.style.position || "relative";
         col.appendChild(badge);
       }
@@ -365,7 +390,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       el.classList.toggle("focused", el.getAttribute("data-date") === date);
     });
 
-    loadMemo(date);
+    void loadMemo(date);
 
     requestAnimationFrame(() => {
       if (lastTotalHours <= 0) return;
@@ -390,7 +415,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
   // フォーカスを解除して週表示に戻す: focused class を全部剥がし、追加した grid 線を撤去
   function exitFocusMode(): void {
     container.classList.remove("focus-mode");
-    laneHeader.querySelectorAll(".day-head.focused").forEach((el) => el.classList.remove("focused"));
+    laneHeader
+      .querySelectorAll(".day-head.focused")
+      .forEach((el) => el.classList.remove("focused"));
     laneBody.style.removeProperty("--zoom-scale");
 
     const timeAxisEl = laneBody.querySelector<HTMLElement>(".time-axis");
@@ -402,7 +429,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     laneBody.querySelectorAll(".focus-grid-line").forEach((el) => el.remove());
     laneBody.scrollTop = 0;
 
-    memoInner.innerHTML = '<div class="memo-empty">日付を選んでください<br>メモが表示されます</div>';
+    memoInner.innerHTML =
+      '<div class="memo-empty">日付を選んでください<br>メモが表示されます</div>';
   }
 
   // memoGen: loadMemo の await 中に別日が選ばれた場合に古い描画を破棄するための世代カウンタ
@@ -417,8 +445,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       memoSaveTimeout = undefined;
       if (pendingMemoSave) {
         const { date, getValue } = pendingMemoSave;
-        saveDayMemo(date, getValue()).catch((e) => {
-          showToast({ title: "メモの保存に失敗しました", body: String(e), kind: "error" });
+        saveDayMemo(date, getValue()).catch((e: unknown) => {
+          showToast({ title: "メモの保存に失敗しました", body: errMessage(e), kind: "error" });
         });
         pendingMemoSave = null;
       }
@@ -479,7 +507,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     noteCard.className = "memo-note-card";
 
     const maxLen = settings.get().memo_max_length;
-    const memoText = data.memo || "";
+    const memoText = data.memo ?? "";
 
     const markerView = document.createElement("div");
     markerView.className = "memo-marker-view";
@@ -516,8 +544,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       clearTimeout(memoSaveTimeout);
       pendingMemoSave = { date: data.date, getValue: () => textarea.value };
       memoSaveTimeout = window.setTimeout(() => {
-        saveDayMemo(data.date, textarea.value).catch((e) => {
-          showToast({ title: "メモの保存に失敗しました", body: String(e), kind: "error" });
+        saveDayMemo(data.date, textarea.value).catch((e: unknown) => {
+          showToast({ title: "メモの保存に失敗しました", body: errMessage(e), kind: "error" });
         });
         pendingMemoSave = null;
         memoSaveTimeout = undefined;
@@ -532,7 +560,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     // Memokitto
     const kittoChips = data.memokitto;
     if (kittoChips.length > 0) {
-      memoInner.appendChild(renderMemokittoTray(kittoChips, textarea, markerView, data, counter, maxLen));
+      memoInner.appendChild(
+        renderMemokittoTray(kittoChips, textarea, markerView, data, counter, maxLen),
+      );
     }
 
     const statsEl = document.createElement("div");
@@ -601,10 +631,12 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       block.addEventListener("click", (e) => {
         e.stopPropagation();
         const visit = data.visits[idx];
-        if (!visit || !activePhotosEl) return;
+        if (!activePhotosEl) return;
 
         const wasActive = block.classList.contains("visit-selected");
-        focusedLane.querySelectorAll(".visit-block.visit-selected").forEach((b) => b.classList.remove("visit-selected"));
+        focusedLane
+          .querySelectorAll(".visit-block.visit-selected")
+          .forEach((b) => b.classList.remove("visit-selected"));
 
         const existingJoin = memoInner.querySelector(".join-record");
         if (existingJoin) existingJoin.remove();
@@ -613,7 +645,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
           renderPhotoGrid(activePhotosEl, allPhotos);
         } else {
           block.classList.add("visit-selected");
-          const filtered = allPhotos.filter((p) => p.hour >= visit.start_hour && p.hour < visit.end_hour);
+          const filtered = allPhotos.filter(
+            (p) => p.hour >= visit.start_hour && p.hour < visit.end_hour,
+          );
           renderPhotoGrid(activePhotosEl, filtered);
 
           if (visit.players && visit.players.length > 0) {
@@ -666,7 +700,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     el: HTMLElement,
     text: string,
     autoMarkers: MarkerSpan[],
-    manualMarkers: ManualMarker[]
+    manualMarkers: ManualMarker[],
   ): void {
     el.innerHTML = "";
     if (!text) return;
@@ -728,11 +762,13 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       if (!sel || sel.isCollapsed || !markerView.contains(sel.anchorNode)) return;
 
       const range = sel.getRangeAt(0);
-      const fullText = data.memo || "";
+      const fullText = data.memo ?? "";
       const offsets = getSelectionOffsets(markerView, range);
       if (offsets.start >= offsets.end) return;
 
-      const clickedMarker = (e.target as HTMLElement).closest("[data-marker-id]") as HTMLElement | null;
+      const clickedMarker = (e.target instanceof Element ? e.target : null)?.closest(
+        "[data-marker-id]",
+      );
 
       const menu = document.createElement("div");
       menu.className = "marker-context-menu";
@@ -765,7 +801,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
         menu.appendChild(item);
       }
 
-      if (clickedMarker) {
+      if (clickedMarker instanceof HTMLElement) {
         const markerId = Number(clickedMarker.dataset.markerId);
         const sep = document.createElement("div");
         sep.className = "marker-menu-sep";
@@ -799,7 +835,10 @@ export function HomePage(subs: Subscriptions): HTMLElement {
   // 「container 先頭から range 端まで」の Range を toString() して .length を取る。
   // JS 文字列は UTF-16 なので .length = UTF-16 コードユニット数となり、
   // バックエンド (marker.rs) が返す UTF-16 オフセットと一致する。
-  function getSelectionOffsets(container: HTMLElement, range: Range): { start: number; end: number } {
+  function getSelectionOffsets(
+    container: HTMLElement,
+    range: Range,
+  ): { start: number; end: number } {
     const preRange = document.createRange();
     preRange.selectNodeContents(container);
     preRange.setEnd(range.startContainer, range.startOffset);
@@ -821,7 +860,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     markerView: HTMLElement,
     data: DayFocusData,
     counter: HTMLElement,
-    maxLen: number
+    maxLen: number,
   ): HTMLElement {
     const board = document.createElement("div");
     board.className = "kitto-sticker-board";
@@ -851,7 +890,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       stickers.className = "kitto-stickers";
       for (const c of worlds) {
         const sticker = createSticker(c.label, "world", stickerIndex++);
-        sticker.addEventListener("click", () => insertChipToMemo(sticker, c.label, textarea, markerView, data, counter, maxLen));
+        sticker.addEventListener("click", () =>
+          insertChipToMemo(sticker, c.label, textarea, markerView, data, counter, maxLen),
+        );
         stickers.appendChild(sticker);
       }
       sec.appendChild(stickers);
@@ -866,7 +907,9 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       stickers.className = "kitto-stickers";
       for (const c of people) {
         const sticker = createSticker(c.label, "person", stickerIndex++);
-        sticker.addEventListener("click", () => insertChipToMemo(sticker, c.label, textarea, markerView, data, counter, maxLen));
+        sticker.addEventListener("click", () =>
+          insertChipToMemo(sticker, c.label, textarea, markerView, data, counter, maxLen),
+        );
         stickers.appendChild(sticker);
       }
       sec.appendChild(stickers);
@@ -901,7 +944,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     markerView: HTMLElement,
     data: DayFocusData,
     counter: HTMLElement,
-    maxLen: number
+    maxLen: number,
   ): void {
     chipEl.classList.add("inserting");
 
@@ -919,8 +962,8 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       clearTimeout(memoSaveTimeout);
       pendingMemoSave = { date: data.date, getValue: () => textarea.value };
       memoSaveTimeout = window.setTimeout(() => {
-        saveDayMemo(data.date, textarea.value).catch((e) => {
-          showToast({ title: "メモの保存に失敗しました", body: String(e), kind: "error" });
+        saveDayMemo(data.date, textarea.value).catch((e: unknown) => {
+          showToast({ title: "メモの保存に失敗しました", body: errMessage(e), kind: "error" });
         });
         pendingMemoSave = null;
         memoSaveTimeout = undefined;
@@ -962,8 +1005,16 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       nextBtn.style.display = current < photos.length - 1 ? "" : "none";
     }
 
-    prevBtn.addEventListener("click", (e) => { e.stopPropagation(); current--; update(); });
-    nextBtn.addEventListener("click", (e) => { e.stopPropagation(); current++; update(); });
+    prevBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      current--;
+      update();
+    });
+    nextBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      current++;
+      update();
+    });
 
     // ライトボックスを閉じてイベントリスナーを解除する
     let closed = false;
@@ -978,8 +1029,14 @@ export function HomePage(subs: Subscriptions): HTMLElement {
     // ライトボックスのキーボード操作を処理する
     function keyHandler(e: KeyboardEvent): void {
       if (e.key === "Escape") close();
-      if (e.key === "ArrowLeft" && current > 0) { current--; update(); }
-      if (e.key === "ArrowRight" && current < photos.length - 1) { current++; update(); }
+      if (e.key === "ArrowLeft" && current > 0) {
+        current--;
+        update();
+      }
+      if (e.key === "ArrowRight" && current < photos.length - 1) {
+        current++;
+        update();
+      }
     }
 
     overlay.addEventListener("click", close);
@@ -1010,21 +1067,21 @@ export function HomePage(subs: Subscriptions): HTMLElement {
       } else {
         exitFocusMode();
       }
-    })
+    }),
   );
 
   subs.add(
     currentWeekStart.subscribe(() => {
       if (focusedDate.get()) focusedDate.set(null);
-      loadWeek();
-    })
+      void loadWeek();
+    }),
   );
 
   // 予定追加/削除によって notifications が更新されたら週を再描画
   subs.add(
     notifications.subscribe(() => {
-      if (!focusedDate.get()) loadWeek();
-    })
+      if (!focusedDate.get()) void loadWeek();
+    }),
   );
 
   // Keyboard
@@ -1051,7 +1108,7 @@ export function HomePage(subs: Subscriptions): HTMLElement {
 
   // Store.subscribe は登録時に発火しないため、既にセット済みの focusedDate を週ロード後に拾う
   const pendingFocus = focusedDate.get();
-  loadWeek().then(() => {
+  void loadWeek().then(() => {
     if (pendingFocus && focusedDate.get() === pendingFocus) {
       enterFocusMode(pendingFocus);
     }

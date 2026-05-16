@@ -4,9 +4,8 @@ export interface VisitPlayer {
   name: string;
 }
 
-// ワールド訪問の時間帯ブロック
+// ワールド訪問の時間帯ブロック (世界色は Mira 側で world_name 基準に生成)
 export interface VisitBlock {
-  world_id: string;
   world_name: string;
   color_hex: string;
   start_hour: number;

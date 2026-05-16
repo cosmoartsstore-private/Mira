@@ -46,4 +46,3 @@ export function showSnapshotModal(summary: SnapshotSummary, onClose: () => void)
   document.body.appendChild(overlay);
   requestAnimationFrame(() => overlay.classList.add("visible"));
 }
-

@@ -20,21 +20,37 @@
   height: 50px;
   bottom: 25%;
   right: -100px;
-  opacity: 0;
+  opacity: 0%;
   pointer-events: none;
   z-index: 5;
 }
 
 .env-leaf.flying {
-  animation: envLeafFly 2.4s cubic-bezier(0.4, 0.1, 0.3, 1) forwards;
+  animation: env-leaf-fly 2.4s cubic-bezier(0.4, 0.1, 0.3, 1) forwards;
 }
 
-@keyframes envLeafFly {
-  0% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
-  10% { opacity: 1; }
-  50% { transform: translate(-50vw, -25vh) rotate(180deg); }
-  90% { opacity: 1; }
-  100% { transform: translate(-115vw, -50vh) rotate(360deg); opacity: 0; }
+@keyframes env-leaf-fly {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0%;
+  }
+
+  10% {
+    opacity: 100%;
+  }
+
+  50% {
+    transform: translate(-50vw, -25vh) rotate(180deg);
+  }
+
+  90% {
+    opacity: 100%;
+  }
+
+  100% {
+    transform: translate(-115vw, -50vh) rotate(360deg);
+    opacity: 0%;
+  }
 }
 
 /* ===== Letter Notification ===== */
@@ -44,26 +60,36 @@
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  opacity: 0;
+  opacity: 0%;
   pointer-events: none;
   z-index: 10;
 }
 
 .env-letter-notify.show {
-  animation: envLetterAppear 0.6s ease-out forwards;
+  animation: env-letter-appear 0.6s ease-out forwards;
 }
 
 .env-letter-notify.fade-out {
-  animation: envLetterFade 0.6s ease-in forwards;
+  animation: env-letter-fade 0.6s ease-in forwards;
 }
 
-@keyframes envLetterAppear {
-  from { opacity: 0; transform: translate(-50%, -45%); }
-  to { opacity: 1; transform: translate(-50%, -50%); }
+@keyframes env-letter-appear {
+  from {
+    opacity: 0%;
+    transform: translate(-50%, -45%);
+  }
+
+  to {
+    opacity: 100%;
+    transform: translate(-50%, -50%);
+  }
 }
 
-@keyframes envLetterFade {
-  to { opacity: 0; transform: translate(-50%, -55%); }
+@keyframes env-letter-fade {
+  to {
+    opacity: 0%;
+    transform: translate(-50%, -55%);
+  }
 }
 
 .env-letter-text {
@@ -83,12 +109,14 @@
 }
 
 .env-letter-text.writing .env-letter-text-inner {
-  animation: envTextReveal 1.8s steps(40, end) forwards;
+  animation: env-text-reveal 1.8s steps(40, end) forwards;
   clip-path: inset(0 100% 0 0);
 }
 
-@keyframes envTextReveal {
-  to { clip-path: inset(0 0 0 0); }
+@keyframes env-text-reveal {
+  to {
+    clip-path: inset(0 0 0 0);
+  }
 }
 
 /* ===== Envelope ===== */
@@ -99,24 +127,30 @@
   height: 320px;
   perspective: 1800px;
   z-index: 8;
-  opacity: 0;
+  opacity: 0%;
   transform: translateY(20px) scale(0.95);
 }
 
 .envelope-wrap.appear {
-  animation: envAppear 0.7s ease-out forwards;
+  animation: env-appear 0.7s ease-out forwards;
 }
 
-@keyframes envAppear {
-  to { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes env-appear {
+  to {
+    opacity: 100%;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .envelope-wrap.recede {
-  animation: envRecede 0.5s ease-in forwards;
+  animation: env-recede 0.5s ease-in forwards;
 }
 
-@keyframes envRecede {
-  to { opacity: 0; transform: translateY(-30px) scale(0.9); }
+@keyframes env-recede {
+  to {
+    opacity: 0%;
+    transform: translateY(-30px) scale(0.9);
+  }
 }
 
 .envelope {
@@ -131,7 +165,7 @@
   inset: 0;
   background: linear-gradient(135deg, #e8d8b8 0%, #d4c098 60%, #b89970 100%);
   border: 1px solid #a08560;
-  box-shadow: 0 8px 32px rgba(74, 61, 46, 0.25);
+  box-shadow: 0 8px 32px rgb(74 61 46 / 25%);
 }
 
 .env-front {
@@ -144,22 +178,16 @@
 }
 
 .env-front::after {
-  content: '';
+  content: "";
   position: absolute;
-  left: 0;
-  top: 35%;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(180deg, rgba(160, 133, 96, 0) 0%, rgba(160, 133, 96, 0.15) 100%);
+  inset: 35% 0 0;
+  background: linear-gradient(180deg, rgb(160 133 96 / 0%) 0%, rgb(160 133 96 / 15%) 100%);
   pointer-events: none;
 }
 
 .env-fold-lines {
   position: absolute;
-  left: 0;
-  top: 35%;
-  right: 0;
-  bottom: 0;
+  inset: 35% 0 0;
   z-index: 5;
   pointer-events: none;
 }
@@ -195,42 +223,46 @@
   width: 70px;
   height: 70px;
   z-index: 6;
-  transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.8s;
+  transition:
+    transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.8s;
 }
 
 .env-seal svg {
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 3px 6px rgba(74, 22, 12, 0.4));
+  filter: drop-shadow(0 3px 6px rgb(74 22 12 / 40%));
 }
 
 .envelope-wrap.seal-broken .env-seal {
   transform: translate(-50%, -240%) rotate(38deg) scale(0.85);
-  opacity: 0;
+  opacity: 0%;
 }
 
 /* Folded letter inside envelope */
 .folded-letter {
   position: absolute;
-  left: 8%;
-  right: 8%;
-  top: 38%;
-  bottom: 12%;
+  inset: 38% 8% 12%;
   background: #fefaf0;
   border: 1px solid var(--paper-deep);
   z-index: 2;
   transform-origin: bottom center;
   transform: scaleY(0);
-  box-shadow: 0 2px 8px rgba(74, 61, 46, 0.15);
+  box-shadow: 0 2px 8px rgb(74 61 46 / 15%);
 }
 
 .envelope-wrap.letter-rising .folded-letter {
-  animation: letterRise 1.1s 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: letter-rise 1.1s 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@keyframes letterRise {
-  0% { transform: scaleY(0) translateY(0); }
-  100% { transform: scaleY(1) translateY(-30%); }
+@keyframes letter-rise {
+  0% {
+    transform: scaleY(0) translateY(0);
+  }
+
+  100% {
+    transform: scaleY(1) translateY(-30%);
+  }
 }
 
 /* ===== Unfolded Letter ===== */
@@ -243,23 +275,37 @@
   max-width: 92vw;
   background: #fefaf0;
   border: 1px solid var(--paper-deep);
-  box-shadow: 0 16px 56px rgba(74, 61, 46, 0.3);
-  opacity: 0;
+  box-shadow: 0 16px 56px rgb(74 61 46 / 30%);
+  opacity: 0%;
   pointer-events: none;
   z-index: 12;
   transform-origin: center;
 }
 
 .unfolded-letter.show {
-  animation: unfoldLetter 1.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: unfold-letter 1.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   pointer-events: auto;
 }
 
-@keyframes unfoldLetter {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotateX(80deg); }
-  40% { opacity: 1; transform: translate(-50%, -50%) scale(0.7) rotateX(40deg); }
-  70% { transform: translate(-50%, -50%) scale(0.95) rotateX(10deg); }
-  100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotateX(0deg); }
+@keyframes unfold-letter {
+  0% {
+    opacity: 0%;
+    transform: translate(-50%, -50%) scale(0.4) rotateX(80deg);
+  }
+
+  40% {
+    opacity: 100%;
+    transform: translate(-50%, -50%) scale(0.7) rotateX(40deg);
+  }
+
+  70% {
+    transform: translate(-50%, -50%) scale(0.95) rotateX(10deg);
+  }
+
+  100% {
+    opacity: 100%;
+    transform: translate(-50%, -50%) scale(1) rotateX(0deg);
+  }
 }
 
 .unfolded-letter .letter-body {
@@ -269,8 +315,8 @@
       to bottom,
       transparent,
       transparent 35px,
-      rgba(45, 58, 92, 0.06) 35px,
-      rgba(45, 58, 92, 0.06) 36px
+      rgb(45 58 92 / 6%) 35px,
+      rgb(45 58 92 / 6%) 36px
     ),
     #fefaf0;
   min-height: 400px;
@@ -279,17 +325,22 @@
 
 .unfolded-letter .letter-body::before,
 .unfolded-letter .letter-body::after {
-  content: '';
+  content: "";
   position: absolute;
   left: 0;
   right: 0;
   height: 1px;
-  background: rgba(74, 61, 46, 0.08);
+  background: rgb(74 61 46 / 8%);
   pointer-events: none;
 }
 
-.unfolded-letter .letter-body::before { top: 33.33%; }
-.unfolded-letter .letter-body::after { top: 66.66%; }
+.unfolded-letter .letter-body::before {
+  top: 33.33%;
+}
+
+.unfolded-letter .letter-body::after {
+  top: 66.66%;
+}
 
 .unfolded-letter .letter-greeting {
   font-family: var(--content-font);
@@ -299,16 +350,23 @@
   margin-bottom: 28px;
   border-bottom: 1px dotted var(--rule);
   padding-bottom: 16px;
-  opacity: 0;
+  opacity: 0%;
 }
 
 .unfolded-letter.show .letter-greeting {
-  animation: snapshotFadeUp 0.6s 1.0s ease-out forwards;
+  animation: snapshot-fade-up 0.6s 1s ease-out forwards;
 }
 
-@keyframes snapshotFadeUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes snapshot-fade-up {
+  from {
+    opacity: 0%;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 100%;
+    transform: translateY(0);
+  }
 }
 
 .unfolded-letter .summary-grid-q {
@@ -319,17 +377,34 @@
 }
 
 .unfolded-letter .summary-grid-q .stat-row {
-  border-bottom: 1px dotted rgba(201, 184, 150, 0.5);
+  border-bottom: 1px dotted rgb(201 184 150 / 50%);
   padding-bottom: 12px;
-  opacity: 0;
+  opacity: 0%;
 }
 
-.unfolded-letter.show .summary-grid-q .stat-row:nth-child(1) { animation: snapshotFadeUp 0.5s 1.2s ease-out forwards; }
-.unfolded-letter.show .summary-grid-q .stat-row:nth-child(2) { animation: snapshotFadeUp 0.5s 1.3s ease-out forwards; }
-.unfolded-letter.show .summary-grid-q .stat-row:nth-child(3) { animation: snapshotFadeUp 0.5s 1.4s ease-out forwards; }
-.unfolded-letter.show .summary-grid-q .stat-row:nth-child(4) { animation: snapshotFadeUp 0.5s 1.5s ease-out forwards; }
-.unfolded-letter.show .summary-grid-q .stat-row:nth-child(5) { animation: snapshotFadeUp 0.5s 1.6s ease-out forwards; }
-.unfolded-letter.show .summary-grid-q .stat-row:nth-child(6) { animation: snapshotFadeUp 0.5s 1.7s ease-out forwards; }
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(1) {
+  animation: snapshot-fade-up 0.5s 1.2s ease-out forwards;
+}
+
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(2) {
+  animation: snapshot-fade-up 0.5s 1.3s ease-out forwards;
+}
+
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(3) {
+  animation: snapshot-fade-up 0.5s 1.4s ease-out forwards;
+}
+
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(4) {
+  animation: snapshot-fade-up 0.5s 1.5s ease-out forwards;
+}
+
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(5) {
+  animation: snapshot-fade-up 0.5s 1.6s ease-out forwards;
+}
+
+.unfolded-letter.show .summary-grid-q .stat-row:nth-child(6) {
+  animation: snapshot-fade-up 0.5s 1.7s ease-out forwards;
+}
 
 .unfolded-letter .stat-row .label {
   font-family: var(--heading-font);
@@ -363,11 +438,11 @@
   font-family: var(--content-font);
   font-size: 15px;
   color: var(--ink-soft);
-  opacity: 0;
+  opacity: 0%;
 }
 
 .unfolded-letter.show .letter-footer {
-  animation: snapshotFadeUp 0.6s 1.9s ease-out forwards;
+  animation: snapshot-fade-up 0.6s 1.9s ease-out forwards;
 }
 
 .unfolded-letter .letter-footer .signature {
@@ -390,14 +465,16 @@
   letter-spacing: 0.25em;
   color: var(--ink-faint);
   text-transform: uppercase;
-  opacity: 0;
+  opacity: 0%;
   pointer-events: none;
 }
 
 .env-close-hint.show {
-  animation: envHintFade 0.6s 0.5s ease-out forwards;
+  animation: env-hint-fade 0.6s 0.5s ease-out forwards;
 }
 
-@keyframes envHintFade {
-  to { opacity: 0.7; }
+@keyframes env-hint-fade {
+  to {
+    opacity: 70%;
+  }
 }

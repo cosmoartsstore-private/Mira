@@ -6,10 +6,7 @@ let activeAnimations: Animation[] = [];
 
 // 右からカバーをスライドイン → ページ差替コールバック → 左へスライドアウト、の3フェーズ。
 // 各 await 後に gen 比較を行い、古い遷移であれば早期 return して二重実行を防ぐ。
-export async function playTransition(
-  destination: string,
-  onCovered: () => void
-): Promise<void> {
+export async function playTransition(destination: string, onCovered: () => void): Promise<void> {
   const cover = document.getElementById("transition-cover");
   if (!cover) {
     onCovered();
@@ -21,8 +18,8 @@ export async function playTransition(
   activeAnimations = [];
   const gen = ++transitionGen;
 
-  const label = cover.querySelector(".transition-label") as HTMLElement;
-  const content = cover.querySelector(".transition-content") as HTMLElement;
+  const label = cover.querySelector(".transition-label")!;
+  const content = cover.querySelector<HTMLElement>(".transition-content")!;
 
   // 初期位置（画面右外）にリセット
   cover.style.transform = "translateX(100%)";
@@ -37,7 +34,7 @@ export async function playTransition(
     cover.style.transform = "translateX(0%)";
     const slideIn = cover.animate(
       [{ transform: "translateX(100%)" }, { transform: "translateX(0%)" }],
-      { duration: 380, easing: "cubic-bezier(0.25, 0.1, 0.25, 1)" }
+      { duration: 380, easing: "cubic-bezier(0.25, 0.1, 0.25, 1)" },
     );
     activeAnimations.push(slideIn);
     await slideIn.finished;
@@ -53,7 +50,7 @@ export async function playTransition(
     // Phase 3: 左へ抜けてビューを露出
     const slideOut = cover.animate(
       [{ transform: "translateX(0%)" }, { transform: "translateX(-100%)" }],
-      { duration: 380, easing: "cubic-bezier(0.25, 0.1, 0.25, 1)" }
+      { duration: 380, easing: "cubic-bezier(0.25, 0.1, 0.25, 1)" },
     );
     activeAnimations.push(slideOut);
 

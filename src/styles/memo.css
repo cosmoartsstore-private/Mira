@@ -1,9 +1,12 @@
 .memo-paper {
   flex: 0 0 0;
   max-width: 0;
-  opacity: 0;
+  opacity: 0%;
   overflow: hidden;
-  transition: flex 0.5s ease, max-width 0.5s ease, opacity 0.4s 0.2s ease;
+  transition:
+    flex 0.5s ease,
+    max-width 0.5s ease,
+    opacity 0.4s 0.2s ease;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -12,19 +15,19 @@
 .home-page.focus-mode .memo-paper {
   flex: 0 0 calc(85% - 16px);
   max-width: calc(85% - 16px);
-  opacity: 1;
+  opacity: 100%;
 }
 
 .memo-inner {
   background:
-    linear-gradient(180deg, rgba(42, 32, 24, 0.25) 0%, rgba(42, 32, 24, 0.08) 8%, transparent 20%),
-    url('../assets/textures/wood-wall.jpg');
+    linear-gradient(180deg, rgb(42 32 24 / 25%) 0%, rgb(42 32 24 / 8%) 8%, transparent 20%),
+    url("../assets/textures/wood-wall.jpg");
   background-size: cover;
   background-position: center;
-  border: 1px solid rgba(74, 61, 46, 0.4);
+  border: 1px solid rgb(74 61 46 / 40%);
   box-shadow:
-    inset 0 2px 8px rgba(0, 0, 0, 0.15),
-    0 8px 32px rgba(74, 61, 46, 0.12);
+    inset 0 2px 8px rgb(0 0 0 / 15%),
+    0 8px 32px rgb(74 61 46 / 12%);
   padding: 32px 36px;
   position: relative;
   flex: 1;
@@ -33,10 +36,10 @@
 }
 
 .memo-inner::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
-  background: rgba(42, 32, 24, 0.12);
+  background: rgb(42 32 24 / 12%);
   pointer-events: none;
   z-index: 0;
 }
@@ -49,9 +52,9 @@
   font-size: 15px;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: rgba(244, 237, 224, 0.85);
+  color: rgb(244 237 224 / 85%);
   margin-bottom: 12px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 30%);
   position: relative;
   z-index: 1;
 }
@@ -59,68 +62,59 @@
 /* ===== Notebook-style memo card ===== */
 
 .memo-note-card {
-  position: relative;
   z-index: 1;
+
   --nb-line-height: 38px;
   --nb-margin-left: 48px;
+
   background:
     repeating-linear-gradient(
       to bottom,
       transparent,
       transparent calc(var(--nb-line-height) - 1px),
-      rgba(140, 170, 210, 0.3) calc(var(--nb-line-height) - 1px),
-      rgba(140, 170, 210, 0.3) var(--nb-line-height)
+      rgb(140 170 210 / 30%) calc(var(--nb-line-height) - 1px),
+      rgb(140 170 210 / 30%) var(--nb-line-height)
     ),
     linear-gradient(135deg, #fefcf6 0%, #faf4e6 100%);
-  border: 1px solid rgba(160, 140, 110, 0.5);
+  border: 1px solid rgb(160 140 110 / 50%);
   box-shadow:
-    3px 4px 10px rgba(0, 0, 0, 0.18),
-    0 1px 3px rgba(0, 0, 0, 0.1);
+    3px 4px 10px rgb(0 0 0 / 18%),
+    0 1px 3px rgb(0 0 0 / 10%);
   padding: 20px 28px 20px var(--nb-margin-left);
   position: relative;
   margin-bottom: 16px;
 }
 
 .memo-note-card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   bottom: 0;
   left: calc(var(--nb-margin-left) - 12px);
   width: 2px;
-  background: rgba(220, 80, 80, 0.4);
+  background: rgb(220 80 80 / 40%);
   z-index: 1;
 }
 
 .memo-note-card::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 12px;
   left: 8px;
   bottom: 12px;
   width: 20px;
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      transparent,
-      transparent 28px,
-      rgba(160, 160, 160, 0.6) 28px,
-      rgba(160, 160, 160, 0.6) 30px,
-      transparent 30px,
-      transparent 36px
-    );
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 28px,
+    rgb(160 160 160 / 60%) 28px,
+    rgb(160 160 160 / 60%) 30px,
+    transparent 30px,
+    transparent 36px
+  );
   mask-image: repeating-linear-gradient(
     to bottom,
-    transparent 0px,
-    transparent 28px,
-    black 28px,
-    black 36px,
-    transparent 36px,
-    transparent 44px
-  );
-  -webkit-mask-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0px,
+    transparent 0,
     transparent 28px,
     black 28px,
     black 36px,
@@ -147,9 +141,9 @@
   gap: 10px;
   margin-bottom: 16px;
   padding: 14px;
-  background: rgba(250, 244, 232, 0.92);
-  border: 1px solid rgba(201, 184, 150, 0.5);
-  box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.08);
+  background: rgb(250 244 232 / 92%);
+  border: 1px solid rgb(201 184 150 / 50%);
+  box-shadow: 1px 2px 4px rgb(0 0 0 / 8%);
   position: relative;
   z-index: 1;
 }
@@ -257,23 +251,23 @@
 }
 
 .marker-underline[data-kind="red"] {
-  background: linear-gradient(180deg, transparent 60%, rgba(208, 64, 64, 0.35) 60%);
+  background: linear-gradient(180deg, transparent 60%, rgb(208 64 64 / 35%) 60%);
 }
 
 .marker-underline[data-kind="blue"] {
-  background: linear-gradient(180deg, transparent 60%, rgba(64, 128, 192, 0.35) 60%);
+  background: linear-gradient(180deg, transparent 60%, rgb(64 128 192 / 35%) 60%);
 }
 
 .marker-underline[data-kind="green"] {
-  background: linear-gradient(180deg, transparent 60%, rgba(64, 160, 96, 0.35) 60%);
+  background: linear-gradient(180deg, transparent 60%, rgb(64 160 96 / 35%) 60%);
 }
 
 .marker-underline[data-kind="orange"] {
-  background: linear-gradient(180deg, transparent 60%, rgba(212, 154, 74, 0.35) 60%);
+  background: linear-gradient(180deg, transparent 60%, rgb(212 154 74 / 35%) 60%);
 }
 
 .marker-underline[data-kind="manual"] {
-  background: linear-gradient(180deg, transparent 60%, rgba(176, 128, 96, 0.35) 60%);
+  background: linear-gradient(180deg, transparent 60%, rgb(176 128 96 / 35%) 60%);
 }
 
 /* ===== Marker Context Menu ===== */
@@ -283,7 +277,7 @@
   z-index: 150;
   background: var(--card);
   border: 1px solid var(--paper-deep);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
   padding: 4px 0;
   min-width: 100px;
 }
@@ -298,38 +292,38 @@
 }
 
 .marker-menu-item:hover {
-  background: rgba(212, 154, 74, 0.15);
+  background: rgb(212 154 74 / 15%);
 }
 
 .marker-menu-item[data-color="red"]::before {
-  content: 'Aa';
+  content: "Aa";
   font-size: 11px;
   margin-right: 8px;
-  background: linear-gradient(180deg, transparent 60%, rgba(208, 64, 64, 0.35) 60%);
+  background: linear-gradient(180deg, transparent 60%, rgb(208 64 64 / 35%) 60%);
   padding: 0 2px;
 }
 
 .marker-menu-item[data-color="blue"]::before {
-  content: 'Aa';
+  content: "Aa";
   font-size: 11px;
   margin-right: 8px;
-  background: linear-gradient(180deg, transparent 60%, rgba(64, 128, 192, 0.35) 60%);
+  background: linear-gradient(180deg, transparent 60%, rgb(64 128 192 / 35%) 60%);
   padding: 0 2px;
 }
 
 .marker-menu-item[data-color="green"]::before {
-  content: 'Aa';
+  content: "Aa";
   font-size: 11px;
   margin-right: 8px;
-  background: linear-gradient(180deg, transparent 60%, rgba(64, 160, 96, 0.35) 60%);
+  background: linear-gradient(180deg, transparent 60%, rgb(64 160 96 / 35%) 60%);
   padding: 0 2px;
 }
 
 .marker-menu-item[data-color="orange"]::before {
-  content: 'Aa';
+  content: "Aa";
   font-size: 11px;
   margin-right: 8px;
-  background: linear-gradient(180deg, transparent 60%, rgba(212, 154, 74, 0.35) 60%);
+  background: linear-gradient(180deg, transparent 60%, rgb(212 154 74 / 35%) 60%);
   padding: 0 2px;
 }
 
@@ -357,11 +351,12 @@
 
 @keyframes memo-fade-up {
   from {
-    opacity: 0;
+    opacity: 0%;
     transform: translateY(18px);
   }
+
   to {
-    opacity: 1;
+    opacity: 100%;
     transform: translateY(0);
   }
 }
@@ -406,11 +401,11 @@
   font-size: 12px;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: rgba(244, 237, 224, 0.7);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  color: rgb(244 237 224 / 70%);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 30%);
   margin-bottom: 8px;
   padding-bottom: 4px;
-  border-bottom: 1px solid rgba(244, 237, 224, 0.2);
+  border-bottom: 1px solid rgb(244 237 224 / 20%);
 }
 
 .join-record-list {
@@ -422,15 +417,15 @@
 .join-record-name {
   font-family: var(--content-font);
   font-size: 13px;
-  color: rgba(244, 237, 224, 0.9);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(244, 237, 224, 0.2);
+  color: rgb(244 237 224 / 90%);
+  background: rgb(255 255 255 / 10%);
+  border: 1px solid rgb(244 237 224 / 20%);
   padding: 4px 10px;
   border-radius: 2px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 20%);
   transition: background 0.2s ease;
 }
 
 .join-record-name:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgb(255 255 255 / 18%);
 }

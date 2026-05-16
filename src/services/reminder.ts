@@ -10,7 +10,11 @@ import { escapeHtml } from "../utils/html";
 import { formatTime } from "../utils/datetime";
 
 // 話者ボイスファイル群を Vite で事前読込し、URL 文字列の辞書として持つ
-const voiceFiles = import.meta.glob("../assets/voices/*.wav", { eager: true, query: "?url", import: "default" }) as Record<string, string>;
+const voiceFiles: Record<string, string> = import.meta.glob("../assets/voices/*.wav", {
+  eager: true,
+  query: "?url",
+  import: "default",
+});
 
 // 「N 分前」設定値 → ボイスファイル名サフィックスへのマッピング (例: 5 → "5min")
 const TIME_KEYS: Record<number, string> = {
@@ -65,12 +69,15 @@ async function pollReminders(): Promise<void> {
     consecutiveFailures = 0;
     currentIntervalMs = BASE_INTERVAL_MS;
     for (const r of reminders) {
-      await fireReminder(r);
+      fireReminder(r);
     }
   } catch (e) {
     consecutiveFailures += 1;
     // 指数バックオフ (30s → 60s → 120s → 240s → 5min cap)
-    currentIntervalMs = Math.min(BASE_INTERVAL_MS * Math.pow(2, Math.min(consecutiveFailures, 5) - 1), MAX_INTERVAL_MS);
+    currentIntervalMs = Math.min(
+      BASE_INTERVAL_MS * Math.pow(2, Math.min(consecutiveFailures, 5) - 1),
+      MAX_INTERVAL_MS,
+    );
     console.warn(
       `[reminder] checkDueReminders 失敗 (${consecutiveFailures}回連続) 次回 ${currentIntervalMs}ms 後`,
       e,
@@ -79,7 +86,9 @@ async function pollReminders(): Promise<void> {
 }
 
 // 設定に応じて通知音・トースト・読み上げを発火する。トーストは必ず出す。
-async function fireReminder(reminder: ReminderEvent): Promise<void> {
+// (現状は同期処理のみだが、将来 await が必要になっても呼出側の `await fireReminder(...)` で
+// 自然に切替えられる契約として戻り値型は `void` のままにする)
+function fireReminder(reminder: ReminderEvent): void {
   const s = settings.get();
 
   if (s.reminder_sound_enabled) {
@@ -121,9 +130,10 @@ function showReminderToast(reminder: ReminderEvent): void {
 
   // minutes_until が負の場合は「N 分過ぎました」表示
   const mu = reminder.minutes_until;
-  const subText = mu >= 0
-    ? `${mu}分前 ・ ${formatTime(reminder.scheduled_at)}`
-    : `${Math.abs(mu)}分過ぎました ・ ${formatTime(reminder.scheduled_at)}`;
+  const subText =
+    mu >= 0
+      ? `${mu}分前 ・ ${formatTime(reminder.scheduled_at)}`
+      : `${Math.abs(mu)}分過ぎました ・ ${formatTime(reminder.scheduled_at)}`;
 
   const toast = document.createElement("div");
   toast.className = "reminder-toast";
@@ -136,8 +146,7 @@ function showReminderToast(reminder: ReminderEvent): void {
     <button class="reminder-toast-close">&times;</button>
   `;
 
-  toast.querySelector(".reminder-toast-close")!
-    .addEventListener("click", () => dismiss(toast));
+  toast.querySelector(".reminder-toast-close")!.addEventListener("click", () => dismiss(toast));
 
   document.body.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add("visible"));
@@ -150,4 +159,3 @@ function dismiss(toast: HTMLElement): void {
   toast.classList.remove("visible");
   setTimeout(() => toast.remove(), 400);
 }
-

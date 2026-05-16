@@ -29,7 +29,9 @@
   padding: 7px 20px;
   cursor: pointer;
   border-radius: 2px;
-  transition: border-color 0.2s, color 0.2s;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
   align-self: flex-start;
 }
 
@@ -86,22 +88,24 @@
 
 @keyframes page-fade-in {
   from {
-    opacity: 0;
+    opacity: 0%;
     transform: translateY(10px);
   }
+
   to {
-    opacity: 1;
+    opacity: 100%;
     transform: translateY(0);
   }
 }
 
 @keyframes back-btn-enter {
   from {
-    opacity: 0;
+    opacity: 0%;
     transform: translateX(-12px);
   }
+
   to {
-    opacity: 1;
+    opacity: 100%;
     transform: translateX(0);
   }
 }

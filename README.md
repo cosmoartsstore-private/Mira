@@ -4,12 +4,12 @@ VRChat の活動を振り返るジャーナルアプリケーション。STELLA 
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
+| Layer    | Technology                                                  |
+| -------- | ----------------------------------------------------------- |
 | Frontend | TypeScript, Vite (Vanilla DOM + カスタムリアクティブストア) |
-| Backend | Rust (Edition 2021), Tauri v2 |
-| Database | SQLite (rusqlite) — STELLA RECORD DB を参照 |
-| Styling | CSS Custom Properties, CSS Animations |
+| Backend  | Rust (Edition 2021), Tauri v2                               |
+| Database | SQLite (rusqlite) — STELLA RECORD DB を参照                 |
+| Styling  | CSS Custom Properties, CSS Animations                       |
 
 ## Features
 
@@ -63,10 +63,10 @@ npm run tauri build
 
 ## Third-Party Assets
 
-| File | Source | License |
-|------|--------|---------|
-| `src/assets/textures/wood-wall.jpg` | [ambientCG Wood026](https://ambientcg.com/view?id=Wood026) | CC0 1.0 Public Domain |
-| `src/assets/textures/cork-board.jpg` | [ambientCG Cork001](https://ambientcg.com/view?id=Cork001) | CC0 1.0 Public Domain |
+| File                                 | Source                                                             | License                       |
+| ------------------------------------ | ------------------------------------------------------------------ | ----------------------------- |
+| `src/assets/textures/wood-wall.jpg`  | [ambientCG Wood026](https://ambientcg.com/view?id=Wood026)         | CC0 1.0 Public Domain         |
+| `src/assets/textures/cork-board.jpg` | [ambientCG Cork001](https://ambientcg.com/view?id=Cork001)         | CC0 1.0 Public Domain         |
 | `src/assets/sounds/notify-chime.mp3` | [くらげ工匠 フレーズ032](http://www.kurage-kosho.info/system.html) | Free (商用可・クレジット任意) |
 
 ## License

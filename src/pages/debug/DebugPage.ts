@@ -1,7 +1,22 @@
-import { currentWeekStart, focusedDate, currentMonth, settings, stellaConnected, activeTab, Subscriptions } from "../../state/store";
+import {
+  currentWeekStart,
+  focusedDate,
+  currentMonth,
+  settings,
+  stellaConnected,
+  activeTab,
+  Subscriptions,
+} from "../../state/store";
 import { playSummaryAnimation } from "../../animations/summary";
 import { playSnapshot } from "../../animations/snapshot";
-import { getWeekLaneData, getDayFocusData, getMonthData, getStartupInfo, getSettings } from "../../api/commands";
+import {
+  getWeekLaneData,
+  getDayFocusData,
+  getMonthData,
+  getStartupInfo,
+  getSettings,
+} from "../../api/commands";
+import { errMessage } from "../../utils/html";
 
 // 開発専用ページ。Navbar から DEV ビルド時のみ到達可能。
 // ストア状態の可視化・各 Tauri コマンドの単発実行・演出の再生確認をここに集約している。
@@ -23,14 +38,18 @@ export function DebugPage(subs: Subscriptions): HTMLElement {
 
   // Store State セクションに現在のストア値を JSON で書き出す（購読のたびに再計算）
   function refreshState(): void {
-    stateOutput.textContent = JSON.stringify({
-      activeTab: activeTab.get(),
-      stellaConnected: stellaConnected.get(),
-      currentWeekStart: currentWeekStart.get(),
-      focusedDate: focusedDate.get(),
-      currentMonth: currentMonth.get(),
-      settings: settings.get(),
-    }, null, 2);
+    stateOutput.textContent = JSON.stringify(
+      {
+        activeTab: activeTab.get(),
+        stellaConnected: stellaConnected.get(),
+        currentWeekStart: currentWeekStart.get(),
+        focusedDate: focusedDate.get(),
+        currentMonth: currentMonth.get(),
+        settings: settings.get(),
+      },
+      null,
+      2,
+    );
   }
 
   refreshState();
@@ -49,43 +68,63 @@ export function DebugPage(subs: Subscriptions): HTMLElement {
   const btnRow = document.createElement("div");
   btnRow.className = "debug-btn-row";
 
-  btnRow.appendChild(createBtn("getStartupInfo", async () => {
-    try {
-      const r = await getStartupInfo();
-      apiOutput.textContent = JSON.stringify(r, null, 2);
-    } catch (e) { apiOutput.textContent = `Error: ${e}`; }
-  }));
+  btnRow.appendChild(
+    createBtn("getStartupInfo", async () => {
+      try {
+        const r = await getStartupInfo();
+        apiOutput.textContent = JSON.stringify(r, null, 2);
+      } catch (e) {
+        apiOutput.textContent = `Error: ${errMessage(e)}`;
+      }
+    }),
+  );
 
-  btnRow.appendChild(createBtn("getSettings", async () => {
-    try {
-      const r = await getSettings();
-      apiOutput.textContent = JSON.stringify(r, null, 2);
-    } catch (e) { apiOutput.textContent = `Error: ${e}`; }
-  }));
+  btnRow.appendChild(
+    createBtn("getSettings", async () => {
+      try {
+        const r = await getSettings();
+        apiOutput.textContent = JSON.stringify(r, null, 2);
+      } catch (e) {
+        apiOutput.textContent = `Error: ${errMessage(e)}`;
+      }
+    }),
+  );
 
-  btnRow.appendChild(createBtn("getWeekLaneData", async () => {
-    try {
-      const r = await getWeekLaneData(currentWeekStart.get());
-      apiOutput.textContent = JSON.stringify(r, null, 2);
-    } catch (e) { apiOutput.textContent = `Error: ${e}`; }
-  }));
+  btnRow.appendChild(
+    createBtn("getWeekLaneData", async () => {
+      try {
+        const r = await getWeekLaneData(currentWeekStart.get());
+        apiOutput.textContent = JSON.stringify(r, null, 2);
+      } catch (e) {
+        apiOutput.textContent = `Error: ${errMessage(e)}`;
+      }
+    }),
+  );
 
-  btnRow.appendChild(createBtn("getMonthData", async () => {
-    try {
-      const { year, month } = currentMonth.get();
-      const r = await getMonthData(year, month);
-      apiOutput.textContent = JSON.stringify(r, null, 2);
-    } catch (e) { apiOutput.textContent = `Error: ${e}`; }
-  }));
+  btnRow.appendChild(
+    createBtn("getMonthData", async () => {
+      try {
+        const { year, month } = currentMonth.get();
+        const r = await getMonthData(year, month);
+        apiOutput.textContent = JSON.stringify(r, null, 2);
+      } catch (e) {
+        apiOutput.textContent = `Error: ${errMessage(e)}`;
+      }
+    }),
+  );
 
-  btnRow.appendChild(createBtn("getDayFocusData (today)", async () => {
-    try {
-      const today = new Date();
-      const d = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-      const r = await getDayFocusData(d);
-      apiOutput.textContent = JSON.stringify(r, null, 2);
-    } catch (e) { apiOutput.textContent = `Error: ${e}`; }
-  }));
+  btnRow.appendChild(
+    createBtn("getDayFocusData (today)", async () => {
+      try {
+        const today = new Date();
+        const d = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+        const r = await getDayFocusData(d);
+        apiOutput.textContent = JSON.stringify(r, null, 2);
+      } catch (e) {
+        apiOutput.textContent = `Error: ${errMessage(e)}`;
+      }
+    }),
+  );
 
   apiSection.appendChild(btnRow);
   apiSection.appendChild(apiOutput);
@@ -96,20 +135,26 @@ export function DebugPage(subs: Subscriptions): HTMLElement {
   const actionsRow = document.createElement("div");
   actionsRow.className = "debug-btn-row";
 
-  actionsRow.appendChild(createBtn("stellaConnected = true", () => {
-    stellaConnected.set(true);
-    refreshState();
-  }));
+  actionsRow.appendChild(
+    createBtn("stellaConnected = true", () => {
+      stellaConnected.set(true);
+      refreshState();
+    }),
+  );
 
-  actionsRow.appendChild(createBtn("stellaConnected = false", () => {
-    stellaConnected.set(false);
-    refreshState();
-  }));
+  actionsRow.appendChild(
+    createBtn("stellaConnected = false", () => {
+      stellaConnected.set(false);
+      refreshState();
+    }),
+  );
 
-  actionsRow.appendChild(createBtn("Clear focusedDate", () => {
-    focusedDate.set(null);
-    refreshState();
-  }));
+  actionsRow.appendChild(
+    createBtn("Clear focusedDate", () => {
+      focusedDate.set(null);
+      refreshState();
+    }),
+  );
 
   actionsSection.appendChild(actionsRow);
   container.appendChild(actionsSection);
@@ -140,14 +185,20 @@ export function DebugPage(subs: Subscriptions): HTMLElement {
     { label: "冬 Q4", season: "winter" },
   ];
   for (const { label, season } of seasons) {
-    effectsRow.appendChild(createBtn(label, () => {
-      playSnapshot({ season, greeting: `テスト — ${label}の四半期サマリー`, stats: [
-        { label: "Total Time", value: '<span class="num">142h</span>' },
-        { label: "Active Days", value: '<span class="num">68</span>日' },
-        { label: "People Met", value: '<span class="num">87</span>人' },
-        { label: "Photos", value: '<span class="num">284</span>枚' },
-      ]});
-    }));
+    effectsRow.appendChild(
+      createBtn(label, () => {
+        playSnapshot({
+          season,
+          greeting: `テスト — ${label}の四半期サマリー`,
+          stats: [
+            { label: "Total Time", value: '<span class="num">142h</span>' },
+            { label: "Active Days", value: '<span class="num">68</span>日' },
+            { label: "People Met", value: '<span class="num">87</span>人' },
+            { label: "Photos", value: '<span class="num">284</span>枚' },
+          ],
+        });
+      }),
+    );
   }
   effectsRow.appendChild(createBtn("花びら", () => playSummaryAnimation()));
 
@@ -158,14 +209,18 @@ export function DebugPage(subs: Subscriptions): HTMLElement {
   const envSection = createSection("Environment");
   const envOutput = document.createElement("pre");
   envOutput.className = "debug-output";
-  envOutput.textContent = JSON.stringify({
-    mode: import.meta.env.MODE,
-    dev: import.meta.env.DEV,
-    prod: import.meta.env.PROD,
-    userAgent: navigator.userAgent,
-    viewport: `${window.innerWidth}x${window.innerHeight}`,
-    devicePixelRatio: window.devicePixelRatio,
-  }, null, 2);
+  envOutput.textContent = JSON.stringify(
+    {
+      mode: import.meta.env.MODE,
+      dev: import.meta.env.DEV,
+      prod: import.meta.env.PROD,
+      userAgent: navigator.userAgent,
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+      devicePixelRatio: window.devicePixelRatio,
+    },
+    null,
+    2,
+  );
   envSection.appendChild(envOutput);
   container.appendChild(envSection);
 

@@ -1,10 +1,23 @@
-import { getStartupInfo, getSettings, registerToStellarecord, markReviewSeen, getSnapshotSummary } from "./api/commands";
+import {
+  getStartupInfo,
+  getSettings,
+  registerToStellarecord,
+  markReviewSeen,
+  getSnapshotSummary,
+} from "./api/commands";
 import { Navbar } from "./components/Navbar";
 import { HomePage } from "./pages/home/HomePage";
 import { CalendarPage } from "./pages/calendar/CalendarPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { DebugPage } from "./pages/debug/DebugPage";
-import { activeTab, focusedDate, settings, stellaConnected, notifications, Subscriptions } from "./state/store";
+import {
+  activeTab,
+  focusedDate,
+  settings,
+  stellaConnected,
+  notifications,
+  Subscriptions,
+} from "./state/store";
 import { playTransition } from "./animations/transition";
 import { showStartupReminder } from "./components/StartupReminder";
 import { showSnapshotModal } from "./components/SnapshotModal";
@@ -76,7 +89,10 @@ function renderStartupPlaceholder(pageContainer: HTMLElement, attempt: number, m
 }
 
 // 起動情報取得に失敗したら N 秒後にリトライ (最大3回)
-async function loadStartupWithRetry(maxAttempts: number, pageContainer: HTMLElement): Promise<void> {
+async function loadStartupWithRetry(
+  maxAttempts: number,
+  pageContainer: HTMLElement,
+): Promise<void> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     renderStartupPlaceholder(pageContainer, attempt, maxAttempts);
     try {
@@ -86,9 +102,18 @@ async function loadStartupWithRetry(maxAttempts: number, pageContainer: HTMLElem
 
       const userSettings = await getSettings();
       settings.set(userSettings);
-      document.documentElement.style.setProperty("--memo-font", `"${userSettings.font_family}", sans-serif`);
-      document.documentElement.classList.toggle("font-scope-all", userSettings.font_scope === "all");
-      document.documentElement.classList.toggle("font-scope-content", userSettings.font_scope === "content_only");
+      document.documentElement.style.setProperty(
+        "--memo-font",
+        `"${userSettings.font_family}", sans-serif`,
+      );
+      document.documentElement.classList.toggle(
+        "font-scope-all",
+        userSettings.font_scope === "all",
+      );
+      document.documentElement.classList.toggle(
+        "font-scope-content",
+        userSettings.font_scope === "content_only",
+      );
       document.body.classList.toggle("transitions-disabled", !userSettings.transition_enabled);
 
       pageContainer.innerHTML = "";
