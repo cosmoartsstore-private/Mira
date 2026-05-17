@@ -6,17 +6,17 @@ import {
   stellaConnected,
   activeTab,
   Subscriptions,
-} from "../../state/store";
-import { playSummaryAnimation } from "../../animations/summary";
-import { playSnapshot } from "../../animations/snapshot";
+} from "@/state/store";
+import { playSummaryAnimation } from "@/animations/summary";
+import { playSnapshot } from "@/animations/snapshot";
 import {
   getWeekLaneData,
   getDayFocusData,
   getMonthData,
   getStartupInfo,
   getSettings,
-} from "../../api/commands";
-import { errMessage } from "../../utils/html";
+} from "@/api/commands";
+import { errMessage } from "@/utils/html";
 
 // 開発専用ページ。Navbar から DEV ビルド時のみ到達可能。
 // ストア状態の可視化・各 Tauri コマンドの単発実行・演出の再生確認をここに集約している。
@@ -227,13 +227,14 @@ export function DebugPage(subs: Subscriptions): HTMLElement {
   return container;
 }
 
-// デバッグセクションの外枠 (h3 タイトル付き) を作って返す
+// デバッグセクションの外枠 (h2 タイトル付き) を作って返す。
+// a11y (見出し階層): h1 (Debug) 直下に h2 がない構造を是正し、セクション見出しを h2 に揃える。
 function createSection(title: string): HTMLElement {
   const section = document.createElement("div");
   section.className = "debug-section";
-  const h3 = document.createElement("h3");
-  h3.textContent = title;
-  section.appendChild(h3);
+  const h2 = document.createElement("h2");
+  h2.textContent = title;
+  section.appendChild(h2);
   return section;
 }
 

@@ -2,7 +2,7 @@
   position: fixed;
   top: 56px;
   right: 20px;
-  z-index: 100;
+  z-index: var(--z-overlay);
   background: var(--card);
   border: 1px solid var(--paper-deep);
   box-shadow: 0 8px 32px rgb(74 61 46 / 15%);
@@ -70,6 +70,8 @@
   padding: 4px;
 }
 
-.reminder-close:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .reminder-close:hover {
+    color: var(--ink);
+  }
 }

@@ -4,6 +4,7 @@
 //! `StellaRecord` 未インストール時は `None` を返し、Mira の主機能は引き続き動く。
 
 use rusqlite::{Connection, OpenFlags};
+use std::time::Duration;
 use winreg::enums::HKEY_CURRENT_USER;
 use winreg::RegKey;
 
@@ -23,7 +24,22 @@ pub fn try_connect() -> Option<Connection> {
     // NO_MUTEX は使用しない (デフォルトの SERIALIZED モードで多重アクセスを直列化させる)
     let conn = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
 
-    conn.execute_batch("PRAGMA query_only = ON;").ok()?;
+    // StellaRecord 側の書込で一時的にロックがかかった場合に備え、5 秒の待機を許容する。
+    if let Err(e) = conn.busy_timeout(Duration::from_secs(5)) {
+        eprintln!("[db] StellaRecord busy_timeout 設定失敗: {e}");
+    }
+    // L2 R2-13: 分離レベルを明示する。
+    //   - `query_only = ON`        : SELECT 以外を一律拒否 (二重防御)。
+    //   - `read_uncommitted = OFF` : SQLite の既定 (= SERIALIZABLE 相当) を明示。
+    //     既定値だが、別バージョン / 別ビルドで ON にされる将来リスクを排する。
+    // L3 R3-Sec-1: PRAGMA 失敗時は警告ログを残し、接続自体は返す (起動継続)。
+    //   query_only は二重防御のため失敗しても致命ではない (上位は SELECT のみ実行する)。
+    if let Err(e) = conn.execute_batch(
+        "PRAGMA query_only = ON;
+         PRAGMA read_uncommitted = OFF;",
+    ) {
+        eprintln!("[db] StellaRecord PRAGMA 設定失敗: {e}");
+    }
 
     Some(conn)
 }

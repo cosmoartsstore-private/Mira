@@ -3,6 +3,20 @@
 //! - `StellaRecord` の `apps` テーブルへ Mira 自身を登録 / 解除
 //!
 //! Mira から `StellaRecord` 領域への書き込み (apps テーブル) は最小限に抑える。
+//!
+//! L3 R3-Sec-7: パストラバーサル防御に関する設計メモ。
+//! 現状 `src-tauri/src/commands/` 配下の全コマンドにおいて、フロントエンドから
+//! 渡される文字列を直接ファイルパスとして組み立てる経路は存在しない:
+//! - `stella.rs`   : DB パスは Windows レジストリから取得し、アイコンパスは Tauri 提供の
+//!   `app.path().resource_dir()` 起点で `.join()` する固定リテラルのみ。
+//! - `journal.rs`  : DB パスは内部固定で、ユーザー入力 (date/memo/marker) はすべて
+//!   SQL バインドにのみ使用 (パス連結に使われる経路なし)。
+//! - `calendar.rs` : 同上。
+//! - `startup.rs`  : 同上。
+//!
+//! よって `canonicalize()` + ベースディレクトリ prefix チェックは現時点で不要。
+//! 将来 CLI 引数や IPC でファイルパスを受け取る経路を追加する場合は、
+//! その時点で同等の検証を導入する (`lib.rs` の TODO 参照)。
 
 use rusqlite::Connection;
 use tauri::Manager;
@@ -48,8 +62,7 @@ fn get_stellarecord_db_path() -> Option<String> {
 /// `StellaRecord` DB ファイルの実在を確認する (UI のオンボーディング判定で使う)
 #[tauri::command]
 pub fn check_stellarecord_available() -> bool {
-    get_stellarecord_db_path()
-        .is_some_and(|p| std::path::Path::new(&p).exists())
+    get_stellarecord_db_path().is_some_and(|p| std::path::Path::new(&p).exists())
 }
 
 /// `StellaRecord` に Mira を登録する
@@ -67,14 +80,13 @@ pub fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String>
     let db_path = get_stellarecord_db_path()
         .ok_or_else(|| "StellaRecord がインストールされていません".to_string())?;
 
-    let conn = Connection::open(&db_path)
-        .map_err(|e| format!("DB を開けませんでした: {e}"))?;
+    let conn = Connection::open(&db_path).map_err(|e| format!("DB を開けませんでした: {e}"))?;
 
     conn.execute_batch(APPS_SCHEMA)
         .map_err(|e| format!("テーブル作成に失敗しました: {e}"))?;
 
-    let exe_path = std::env::current_exe()
-        .map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
+    let exe_path =
+        std::env::current_exe().map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
     let exe_str = exe_path.to_string_lossy().to_string();
 
     let icon_data = load_app_icon(&app);
@@ -120,15 +132,17 @@ pub fn unregister_from_stellarecord() -> Result<String, String> {
         return Ok("DB が存在しないため削除不要です".to_string());
     }
 
-    let conn = Connection::open(&db_path)
-        .map_err(|e| format!("DB を開けませんでした: {e}"))?;
+    let conn = Connection::open(&db_path).map_err(|e| format!("DB を開けませんでした: {e}"))?;
 
     // 自身の exe path を主キーとして削除する（複数インストールに耐性）
-    let exe_path = std::env::current_exe()
-        .map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
+    let exe_path =
+        std::env::current_exe().map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
     let exe_str = exe_path.to_string_lossy().to_string();
-    conn.execute("DELETE FROM apps WHERE path = ?1", rusqlite::params![exe_str])
-        .map_err(|e| format!("登録解除に失敗しました: {e}"))?;
+    conn.execute(
+        "DELETE FROM apps WHERE path = ?1",
+        rusqlite::params![exe_str],
+    )
+    .map_err(|e| format!("登録解除に失敗しました: {e}"))?;
 
     Ok("StellaRecord から登録解除しました".to_string())
 }

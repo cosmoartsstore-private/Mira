@@ -1,6 +1,11 @@
-//! メモ本文中からワールド名 / 人名にマッチする箇所を検出し、`UTF-16` コードユニット位置で
-//! 範囲を返す純粋ロジック。フロントの DOM カーソル位置と整合させるため、内部の byte 位置を
-//! `encode_utf16` 経由で UTF-16 単位に変換する。
+//! メモ本文中からワールド名 / 人名にマッチする箇所を検出し、**Unicode スカラー (char) 単位**
+//! で範囲を返す純粋ロジック。フロント (`Array.from(s).length` で算出) と Rust 全層をスカラー単位
+//! に揃えるため、内部の byte 位置を `chars().count()` で変換する。
+//!
+//! L7-MarkerUnit: 旧版は `encode_utf16().count()` を用いて UTF-16 単位で返していたが、
+//!   絵文字 (例: "🎉" = UTF-16 で 2, scalar で 1) でフロントとずれて
+//!   `add_manual_marker` が範囲エラーを返す事例があったため、3 層 (`find_markers` /
+//!   `add_manual_marker` 検証 / `save_day_memo` クリップ) すべてを Unicode scalar に統一する。
 
 use serde::Serialize;
 
@@ -12,8 +17,8 @@ pub enum MarkerKind {
 }
 
 /// メモ内で検出された 1 つのマッチ。
-/// **start / end は UTF-16 コードユニット位置** (JS 文字列インデックス互換)。
-/// 旧版は UTF-8 byte 位置を返していたため日本語混じり文でズレていた。バイト → UTF-16 変換は `find_markers` 内で行う。
+/// **start / end は Unicode スカラー (char) 単位の位置** で、フロント
+/// `Array.from(memo).length` と直接比較できる。バイト → char 変換は `find_markers` 内で行う。
 #[derive(Serialize)]
 pub struct MarkerMatch {
     pub start: usize,
@@ -31,11 +36,7 @@ pub struct MarkerMatch {
 /// 3. 種類 (Person → World の順) でループを回し、同一範囲なら人を優先
 ///
 /// 戻り値はマッチ位置 (start) 昇順でソート済み。
-pub fn find_markers(
-    text: &str,
-    worlds: &[String],
-    people: &[String],
-) -> Vec<MarkerMatch> {
+pub fn find_markers(text: &str, worlds: &[String], people: &[String]) -> Vec<MarkerMatch> {
     let mut candidates: Vec<(&str, MarkerKind)> = Vec::new();
     for p in people {
         candidates.push((p.as_str(), MarkerKind::Person));
@@ -51,7 +52,8 @@ pub fn find_markers(
     let mut used: Vec<(usize, usize)> = Vec::new();
 
     // 人 → ワールドの順で 2 周回す。同位置に両カテゴリが当たり得るが、先勝ち (人) で固定する。
-    // byte → UTF-16 変換は match_indices ループ内で `text[..pos].encode_utf16().count()` により直接行う。
+    // L7-MarkerUnit: byte → Unicode scalar (char) 変換は `text[..pos].chars().count()`
+    //   で行う。フロントの `Array.from(memo).length` と同じ単位になる。
     for kind in [MarkerKind::Person, MarkerKind::World] {
         for (term, k) in &candidates {
             if *k != kind {
@@ -62,15 +64,15 @@ pub fn find_markers(
             }
             for (pos, _) in text.match_indices(term) {
                 let byte_end = pos + term.len();
-                // バイトオフセットを UTF-16 単位に変換する (TS側が UTF-16 で扱うため)
-                let start_utf16 = text[..pos].encode_utf16().count();
-                let end_utf16 = text[..byte_end].encode_utf16().count();
-                let range = (start_utf16, end_utf16);
+                // バイトオフセットを Unicode scalar 単位に変換する (フロントと同単位)
+                let start_char = text[..pos].chars().count();
+                let end_char = text[..byte_end].chars().count();
+                let range = (start_char, end_char);
                 if !used.iter().any(|u| overlaps(*u, range)) {
                     used.push(range);
                     matches.push(MarkerMatch {
-                        start: start_utf16,
-                        end: end_utf16,
+                        start: start_char,
+                        end: end_char,
                         kind: kind.clone(),
                         text: term.to_string(),
                     });
@@ -83,7 +85,7 @@ pub fn find_markers(
     matches
 }
 
-// 2 つの byte 範囲 [a.0, a.1) と [b.0, b.1) が交差するかを判定する (半開区間)
+// 2 つの char 範囲 [a.0, a.1) と [b.0, b.1) が交差するかを判定する (半開区間)
 fn overlaps(a: (usize, usize), b: (usize, usize)) -> bool {
     a.0 < b.1 && b.0 < a.1
 }

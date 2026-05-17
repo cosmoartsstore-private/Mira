@@ -120,6 +120,11 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 ; Installer icon
 !if "${INSTALLERICON}" != ""
   !define MUI_ICON "${INSTALLERICON}"
+  ; アンインストーラにも同じ MIRA アイコンを適用する。
+  ; Tauri 標準 template は MUI_UNICON を渡さないため、コントロールパネルの
+  ; 「プログラムと機能」一覧で uninstall.exe が NSIS デフォルトアイコンに
+  ; なってしまう。同一 ico を使う形でブランド整合を取る。
+  !define MUI_UNICON "${INSTALLERICON}"
 !endif
 
 ; Define registry key to store installer language
@@ -690,7 +695,12 @@ Section Install
     !insertmacro NSIS_HOOK_POSTINSTALL
   !endif
 
-  ; 追加: 共通命名規則に基づくレジストリ位置への書き込み
+  ; Mira ランタイム (src/lib.rs::get_install_location, src/db/mira_db.rs) が
+  ; DB / Data ディレクトリ解決に利用する独自レジストリ値。Tauri 標準の
+  ; SHCTX "${UNINSTKEY}" "InstallLocation" (上の WriteRegStr) とは別用途で、
+  ; こちらはアプリ本体の WAL/EBWebView パス決定が依存するため必須。
+  ; 対応する DeleteRegKey は本ファイル下部のアンインストールセクションに
+  ; 1 箇所だけ存在し、二重削除にはなっていない。
   WriteRegStr HKCU "Software\CosmoArtsStore\Mira" "InstallLocation" "$INSTDIR"
 
   ; Auto close this page for passive mode
@@ -824,7 +834,12 @@ Section Uninstall
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
   ${EndIf}
 
-  ; Clean up everything except Data\archive\ (irreplaceable data)
+  ; Clean up everything except user data (irreplaceable):
+  ;   - Data\db\mira.db       … メモ・予定・手動マーカー・カスタム色 (再生成不可)
+  ;   - Data\archive\         … 旧スキーマ等のアーカイブデータ
+  ; 一時データ (WebView2 キャッシュ・ログ) と AppData ミラーは削除する。
+  ; 完全削除したいユーザーは README のアンインストール手順に従って手動で
+  ; %LOCALAPPDATA%\Programs\Mira を削除する。
   ${If} $UpdateMode <> 1
     DeleteRegKey SHCTX "${MANUPRODUCTKEY}"
     DeleteRegKey /ifempty SHCTX "${MANUKEY}"
@@ -833,14 +848,13 @@ Section Uninstall
     DeleteRegKey /ifempty HKCU "${MANUKEY}"
     DeleteRegKey HKCU "Software\CosmoArtsStore\Mira"
     SetShellVarContext current
-    ; Delete Data subdirectories
-    RmDir /r "$INSTDIR\Data\db"
+    ; 再生成可能なキャッシュ / ログのみ削除
     RmDir /r "$INSTDIR\Data\logs"
     RmDir /r "$INSTDIR\Data\EBWebView"
     RmDir /r "$APPDATA\${BUNDLEID}"
     RmDir /r "$LOCALAPPDATA\${BUNDLEID}"
-    ; NEVER delete Data\archive — preserved data must survive uninstall
-    ; Remove Data\ and $INSTDIR only if empty (archive survives)
+    ; NEVER delete Data\db (mira.db) や Data\archive — preserved user data
+    ; Remove Data\ and $INSTDIR only if empty (user data survives)
     RmDir "$INSTDIR\Data"
     RmDir "$INSTDIR"
   ${EndIf}

@@ -197,12 +197,13 @@
 }
 
 .memo-textarea::placeholder {
-  color: var(--ink-mute);
+  color: var(--ink-faint);
   font-style: italic;
 }
 
 .memo-textarea:focus {
-  outline: none;
+  outline: 2px solid var(--dusk-orange);
+  outline-offset: -2px;
 }
 
 .memo-counter {
@@ -274,7 +275,7 @@
 
 .marker-context-menu {
   position: fixed;
-  z-index: 150;
+  z-index: var(--z-overlay);
   background: var(--card);
   border: 1px solid var(--paper-deep);
   box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
@@ -291,8 +292,15 @@
   transition: background 0.15s;
 }
 
-.marker-menu-item:hover {
-  background: rgb(212 154 74 / 15%);
+.marker-menu-item:focus-visible {
+  outline: 2px solid var(--dusk-orange);
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  .marker-menu-item:hover {
+    background: rgb(212 154 74 / 15%);
+  }
 }
 
 .marker-menu-item[data-color="red"]::before {
@@ -349,17 +357,7 @@
 
 /* ===== Entrance Animations ===== */
 
-@keyframes memo-fade-up {
-  from {
-    opacity: 0%;
-    transform: translateY(18px);
-  }
-
-  to {
-    opacity: 100%;
-    transform: translateY(0);
-  }
-}
+/* `@keyframes memo-fade-up` は animations.css に集約 (重複定義撤去) */
 
 .memo-date {
   animation: memo-fade-up 0.5s ease both;
@@ -426,6 +424,8 @@
   transition: background 0.2s ease;
 }
 
-.join-record-name:hover {
-  background: rgb(255 255 255 / 18%);
+@media (hover: hover) {
+  .join-record-name:hover {
+    background: rgb(255 255 255 / 18%);
+  }
 }

@@ -1,17 +1,19 @@
-import { settings, stellaConnected, Subscriptions } from "../../state/store";
+import { settings, stellaConnected, Subscriptions } from "@/state/store";
 import {
   setSetting,
   setViewHourRange,
   getSettings,
   unregisterFromStellarecord,
-} from "../../api/commands";
-import { showToast } from "../../utils/toast";
-import { errMessage } from "../../utils/html";
-import { playVoiceFile } from "../../services/reminder";
+} from "@/api/commands";
+import { showToast } from "@/utils/toast";
+import { errMessage } from "@/utils/html";
+import { confirmDialog } from "@/utils/confirmDialog";
+import { playVoiceFile } from "@/services/reminder";
+import { MESSAGES } from "@/utils/messages";
 
 // 設定画面。フォント・通知音・VOICEVOX 話者を変更すると DB + ストア双方を即時更新する。
-// _subs は他ページとシグネチャを揃えるための引数だが、この画面は外部ストア購読を持たないため未使用。
-export function SettingsPage(_subs: Subscriptions): HTMLElement {
+// subs は voicevox_enabled の変化を追従するため store 購読を 1 つだけ登録する。
+export function SettingsPage(subs: Subscriptions): HTMLElement {
   const container = document.createElement("div");
   container.className = "settings-page";
 
@@ -70,9 +72,10 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
   container.appendChild(displaySection);
 
   // Memo section
+  // M16: backend は 1..=100000 を許容するため UI も合わせる
   const memoSection = createSection("メモ");
   memoSection.appendChild(
-    createNumberRow("メモ最大文字数", "memo-max-length", s.memo_max_length, 100, 10000),
+    createNumberRow("メモ最大文字数", "memo-max-length", s.memo_max_length, 1, 100_000),
   );
   container.appendChild(memoSection);
 
@@ -126,6 +129,22 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
   charRow.appendChild(charWrap);
   reminderSection.appendChild(charRow);
 
+  // H8: voicevox_enabled OFF のとき話者 select とテストボタンを操作不能にする。
+  // settings ストア購読でトグル変化に追従する。
+  const updateVoiceControlsState = (enabled: boolean): void => {
+    charSelect.disabled = !enabled;
+    testBtn.disabled = !enabled;
+    charRow.classList.toggle("setting-row-disabled", !enabled);
+  };
+  updateVoiceControlsState(s.voicevox_enabled);
+  subs.add(
+    settings.subscribe((next, prev) => {
+      if (next.voicevox_enabled !== prev.voicevox_enabled) {
+        updateVoiceControlsState(next.voicevox_enabled);
+      }
+    }),
+  );
+
   charSelect.addEventListener("change", async () => {
     const prev = settings.get().voice_character || "metan";
     const next = charSelect.value;
@@ -135,12 +154,58 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
     } catch (err) {
       // 保存失敗時は select の表示を元に戻す
       charSelect.value = prev;
-      showToast({ title: "話者設定の保存に失敗しました", body: errMessage(err), kind: "error" });
+      showToast({
+        title: MESSAGES.errors.voiceCharSaveFailed,
+        body: errMessage(err),
+        kind: "error",
+      });
     }
   });
 
   testBtn.addEventListener("click", () => {
-    playVoiceFile(charSelect.value, 5);
+    // L3 R3-Perf-Voice: playVoiceFile は wav の動的 import を含むため Promise を返す。
+    // テスト再生は fire-and-forget で十分 (失敗時は無音 fallback 内部処理)。
+    void playVoiceFile(charSelect.value, 5);
+  });
+
+  // 通知デフォルト (Loop 9 R2-M-20): 新規予定追加時のデフォルト通知タイミング。
+  // バックエンド `mira_settings.remind_minutes_before_default` を `get_settings` 経由で
+  // MiraSettings.remind_minutes_before_default として受け取り、settings ストアに集約済。
+  // 旧 `remindMinutesBefore` Store + localStorage キャッシュは Loop 9 で撤去。
+  // CalendarPage 側も `settings.get().remind_minutes_before_default` を直接参照する。
+  const remindOptions = [5, 10, 15, 20, 30, 60];
+  const storedDefault = settings.get().remind_minutes_before_default;
+  const remindRow = document.createElement("div");
+  remindRow.className = "setting-row";
+  remindRow.innerHTML = `<span class="label">予定追加時のデフォルト通知</span>`;
+  const remindSelect = document.createElement("select");
+  remindSelect.id = "remind-default-select";
+  for (const m of remindOptions) {
+    const opt = document.createElement("option");
+    opt.value = String(m);
+    opt.textContent = m === 60 ? "1時間前" : `${m}分前`;
+    if (m === storedDefault) opt.selected = true;
+    remindSelect.appendChild(opt);
+  }
+  remindRow.appendChild(remindSelect);
+  reminderSection.appendChild(remindRow);
+
+  remindSelect.addEventListener("change", async () => {
+    const prevVal = settings.get().remind_minutes_before_default;
+    const nextVal = Number(remindSelect.value);
+    try {
+      // DB へ保存 → 成功したら settings ストアを batch 更新して subscriber に通知
+      await setSetting("remind_minutes_before_default", String(nextVal));
+      settings.batchSet({ remind_minutes_before_default: nextVal });
+    } catch (err) {
+      // DB 保存失敗時は select 表示を元に戻す (store は触っていないので巻き戻し不要)
+      remindSelect.value = String(prevVal);
+      showToast({
+        title: MESSAGES.errors.remindDefaultSaveFailed,
+        body: errMessage(err),
+        kind: "error",
+      });
+    }
   });
 
   container.appendChild(reminderSection);
@@ -152,19 +217,25 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
   integrationRow.innerHTML = `<span class="label">連携状態</span>`;
   const integrationStatus = document.createElement("span");
   integrationStatus.className = "integration-status";
-  integrationStatus.textContent = stellaConnected.get() ? "接続済み" : "未接続";
+  integrationStatus.textContent = stellaConnected.get()
+    ? MESSAGES.ui.integrationConnected
+    : MESSAGES.ui.integrationDisconnected;
   const unregisterBtn = document.createElement("button");
   unregisterBtn.className = "toggle-btn";
-  unregisterBtn.textContent = "連携を解除";
+  unregisterBtn.textContent = MESSAGES.ui.integrationUnregister;
   unregisterBtn.addEventListener("click", async () => {
-    const ok = await confirmDialog("StellaRecord との連携を解除しますか？");
+    const ok = await confirmDialog(MESSAGES.ui.integrationConfirmUnregister);
     if (!ok) return;
     try {
       await unregisterFromStellarecord();
       stellaConnected.set(false);
-      integrationStatus.textContent = "未接続";
+      integrationStatus.textContent = MESSAGES.ui.integrationDisconnected;
     } catch (err) {
-      showToast({ title: "連携解除に失敗しました", body: errMessage(err), kind: "error" });
+      showToast({
+        title: MESSAGES.errors.integrationUnregisterFailed,
+        body: errMessage(err),
+        kind: "error",
+      });
     }
   });
   const integrationWrap = document.createElement("div");
@@ -185,7 +256,7 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
   profileCard.className = "creator-profile";
   profileCard.innerHTML = `
     <div class="creator-top">
-      <img class="creator-avatar" src="${new URL("../../assets/avatar.jpg", import.meta.url).href}" alt="ぷらねっと" />
+      <img class="creator-avatar" src="${new URL("../../assets/avatar.jpg", import.meta.url).href}" alt="作成者 ぷらねっと のプロフィール画像" />
       <div class="creator-name">ぷらねっと</div>
     </div>
     <div class="creator-links">
@@ -270,7 +341,11 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
       await refreshSettings();
     } catch (err) {
       fontSelect.value = prev;
-      showToast({ title: "書体設定の保存に失敗しました", body: errMessage(err), kind: "error" });
+      showToast({
+        title: MESSAGES.errors.fontSaveFailed,
+        body: errMessage(err),
+        kind: "error",
+      });
     }
   });
 
@@ -293,16 +368,27 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
         const end = key === "view_hour_end" ? v : cur.view_hour_end;
         if (start >= end) {
           input.value = String(key === "view_hour_start" ? cur.view_hour_start : cur.view_hour_end);
+          showToast({
+            title: MESSAGES.errors.viewHourRangeInvalidTitle,
+            body: MESSAGES.errors.viewHourRangeInvalidBody,
+            kind: "error",
+          });
           return;
         }
         input.value = String(v);
         try {
           await setViewHourRange(start, end);
           await refreshSettings();
-        } catch {
+        } catch (err) {
+          // H2: 失敗時 toast 表示 + 直前値に戻す
           const cur2 = settings.get();
           if (key === "view_hour_start") input.value = String(cur2.view_hour_start);
           else input.value = String(cur2.view_hour_end);
+          showToast({
+            title: MESSAGES.errors.viewHourSaveFailed,
+            body: errMessage(err),
+            kind: "error",
+          });
         }
         return;
       }
@@ -311,10 +397,15 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
       try {
         await setSetting(key, String(v));
         await refreshSettings();
-      } catch {
-        // バックエンドが拒否した場合も直前値に戻す
+      } catch (err) {
+        // H2: バックエンドが拒否した場合は toast 通知 + 直前値に戻す
         const cur = settings.get();
         if (key === "memo_max_length") input.value = String(cur.memo_max_length);
+        showToast({
+          title: MESSAGES.errors.settingSaveFailed,
+          body: errMessage(err),
+          kind: "error",
+        });
       }
     });
   });
@@ -340,7 +431,7 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
             buttons.forEach((b) => b.classList.remove("on"));
             if (prevOn) prevOn.classList.add("on");
             showToast({
-              title: "設定の保存に失敗しました",
+              title: MESSAGES.errors.settingSaveFailed,
               body: errMessage(err),
               kind: "error",
             });
@@ -356,13 +447,15 @@ export function SettingsPage(_subs: Subscriptions): HTMLElement {
   return container;
 }
 
-// 設定セクションの外枠 (h3 タイトル付き) を作って返す
+// 設定セクションの外枠 (h2 タイトル付き) を作って返す。
+// a11y (見出し階層): ページ全体の h1 直下に他の h2 が無いため、セクション見出しは h2 に揃える。
+// 旧実装は h3 だったが、h1 → h3 のスキップは支援技術のアウトライン解析で警告対象になる。
 function createSection(title: string): HTMLElement {
   const section = document.createElement("div");
   section.className = "setting-section";
-  const h3 = document.createElement("h3");
-  h3.textContent = title;
-  section.appendChild(h3);
+  const h2 = document.createElement("h2");
+  h2.textContent = title;
+  section.appendChild(h2);
   return section;
 }
 
@@ -471,6 +564,7 @@ async function refreshSettings(): Promise<void> {
   const s = await getSettings();
   settings.set(s);
   applyMemoFont(s.font_family);
+  applyMemoFontLink(s.font_family);
   applyFontScope(s.font_scope || "content_only");
   applyTransitionEnabled(s.transition_enabled);
 }
@@ -478,6 +572,21 @@ async function refreshSettings(): Promise<void> {
 // :root の --memo-font CSS 変数を更新する。メモ・めもきっとなど CSS 側で var(--memo-font) を参照
 function applyMemoFont(family: string): void {
   document.documentElement.style.setProperty("--memo-font", `"${family}", sans-serif`);
+}
+
+// L3 R3-Perf-Font: 選択中のメモ書体だけを Google Fonts から取得するよう
+// link[data-mira-memo-font] の href を差し替える。
+// - UI 系書体 (Allura / Cormorant / Noto Sans JP / Kiwi Maru / Hachi Maru Pop) は
+//   index.html 側の別 link で常時ロード済のため、ここでは差し替え不要。
+// - 既に同じ family が入っている場合は no-op (キャッシュヒットだが冪等性のため)。
+function applyMemoFontLink(family: string): void {
+  const link = document.querySelector<HTMLLinkElement>("link[data-mira-memo-font]");
+  if (!link) return;
+  // family は Google Fonts URL のクエリパラメータ向けに "+" 区切りへ変換
+  const familyParam = family.replaceAll(" ", "+");
+  const nextHref = `https://fonts.googleapis.com/css2?family=${familyParam}&display=swap`;
+  if (link.href === nextHref) return;
+  link.href = nextHref;
 }
 
 // フォント適用範囲 (メモのみ / アプリ全体) をクラスで切替える
@@ -491,61 +600,5 @@ function applyTransitionEnabled(enabled: boolean): void {
   document.body.classList.toggle("transitions-disabled", !enabled);
 }
 
-// WebView 環境差を避けるための HTML 確認モーダル (R2-M-5)
-//
-// window.confirm はビルド先 WebView2 でブロッキング・無視されるケースがあるため
-// 自前モーダルで OK/キャンセルを Promise<boolean> で返す。
-function confirmDialog(message: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "mira-confirm-overlay";
-    overlay.style.cssText =
-      "position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;";
-
-    const card = document.createElement("div");
-    card.className = "mira-confirm-card";
-    card.style.cssText =
-      "background:#fff;color:#222;padding:20px 24px;border-radius:8px;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.25);font-family:inherit;";
-
-    const msg = document.createElement("div");
-    msg.className = "mira-confirm-msg";
-    msg.style.cssText = "margin-bottom:16px;line-height:1.5;";
-    msg.textContent = message;
-
-    const actions = document.createElement("div");
-    actions.style.cssText = "display:flex;gap:8px;justify-content:flex-end;";
-
-    const cancelBtn = document.createElement("button");
-    cancelBtn.className = "toggle-btn";
-    cancelBtn.textContent = "キャンセル";
-
-    const okBtn = document.createElement("button");
-    okBtn.className = "toggle-btn on";
-    okBtn.textContent = "OK";
-
-    const cleanup = (ans: boolean) => {
-      overlay.remove();
-      document.removeEventListener("keydown", onKey);
-      resolve(ans);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") cleanup(false);
-      if (e.key === "Enter") cleanup(true);
-    };
-
-    cancelBtn.addEventListener("click", () => cleanup(false));
-    okBtn.addEventListener("click", () => cleanup(true));
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) cleanup(false);
-    });
-    document.addEventListener("keydown", onKey);
-
-    actions.appendChild(cancelBtn);
-    actions.appendChild(okBtn);
-    card.appendChild(msg);
-    card.appendChild(actions);
-    overlay.appendChild(card);
-    document.body.appendChild(overlay);
-    okBtn.focus();
-  });
-}
+// 確認モーダル (R2-M-5 / Loop 4 UX-01/02 / Loop 6 task1) は utils/confirmDialog.ts に
+// 集約済み。a11y (focusTrap + inertBackground) も統合された共通実装を使う。

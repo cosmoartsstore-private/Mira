@@ -10,10 +10,13 @@ name = "mira_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.0.5", features = [] }
+# Cargo.lock の解決済みバージョンに合わせて pin。tauri 本体 (2.11.x) とビルド時整合を保つ。
+tauri-build = { version = "2.6.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.2.4", features = ["protocol-asset"] }
+# Cargo.lock 解決済みバージョン (2.11.0) に合わせて pin。
+tauri = { version = "2.11.0", features = ["protocol-asset"] }
+tauri-plugin-single-instance = "2.4.2"
 serde = { version = "1", features = ["derive"] }
 rusqlite = { version = "0.38", features = ["bundled"] }
 winreg = "0.52"
@@ -26,7 +29,7 @@ pedantic = { level = "warn", priority = -1 }
 unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"
-todo = "warn"
+todo = "deny"
 dbg_macro = "warn"
 print_stdout = "warn"
 too_many_lines = "warn"
@@ -41,3 +44,11 @@ too_many_arguments = "allow"
 lto = true
 codegen-units = 1
 strip = true
+# L6 Build-1: debuginfo を完全に落とし、release バイナリと並行出力される .pdb
+#   (mira.pdb / mira_lib.pdb) の生成を抑止する。
+#   - debug = false  : Rust 側の debuginfo emit を無効化。
+#   - strip = true   : 残存シンボルを最終バイナリから除去。
+#   Windows MSVC では加えて linker に `/DEBUG:NONE` を渡す必要があるため、
+#   その指定は `.cargo/config.toml` の rustflags 側で行う (Cargo.toml では
+#   `[profile.release.package]` の linker-arg 指定が安定していないため)。
+debug = false

@@ -12,14 +12,16 @@ body {
 
 body {
   background:
-    radial-gradient(ellipse at top right, rgb(212 154 74 / 8%), transparent 40%),
-    radial-gradient(ellipse at bottom left, rgb(45 58 92 / 6%), transparent 50%), var(--paper);
+    radial-gradient(ellipse at top right, var(--bg-radial-stop-a), transparent 40%),
+    radial-gradient(ellipse at bottom left, var(--bg-radial-stop-b), transparent 50%), var(--paper);
   color: var(--ink);
   font-family: var(--ui-font);
   font-size: 14px;
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
   user-select: none;
+  scrollbar-color: var(--rule) transparent;
+  scrollbar-width: thin;
 }
 
 #app {
@@ -33,7 +35,7 @@ body {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 90;
+  z-index: var(--z-overlay);
 }
 
 #overlay-layer > * {

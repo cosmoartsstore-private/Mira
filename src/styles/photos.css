@@ -43,6 +43,11 @@
 }
 
 .photo-thumb {
+  /* --n: 子要素のインデックス (1..7)。stagger 入場用。
+     Loop 2 までは `:nth-child(1) { animation-delay: 0.05s }` … と 7 ルール並んでいたが、
+     `--n` を nth-child で代入 → animation-delay を calc で派生、という単一ルール化で圧縮した。 */
+  --n: 0;
+
   aspect-ratio: 4 / 3;
   border-radius: 1px;
   border: 3px solid #faf4e8;
@@ -57,6 +62,7 @@
   box-shadow: 2px 2px 6px rgb(0 0 0 / 25%);
   transform: rotate(var(--photo-tilt, 0deg));
   animation: photo-drop-in 0.4s ease both;
+  animation-delay: calc(0.05s * var(--n));
 }
 
 @keyframes photo-drop-in {
@@ -71,32 +77,34 @@
   }
 }
 
+/* nth-child(N) の selector specificity 自体は変わらないが、ルール本体が
+   `--n: N` の 1 行ずつになるためバイト数と paint コストを削減できる。 */
 .photo-thumb:nth-child(1) {
-  animation-delay: 0.05s;
+  --n: 1;
 }
 
 .photo-thumb:nth-child(2) {
-  animation-delay: 0.1s;
+  --n: 2;
 }
 
 .photo-thumb:nth-child(3) {
-  animation-delay: 0.15s;
+  --n: 3;
 }
 
 .photo-thumb:nth-child(4) {
-  animation-delay: 0.2s;
+  --n: 4;
 }
 
 .photo-thumb:nth-child(5) {
-  animation-delay: 0.25s;
+  --n: 5;
 }
 
 .photo-thumb:nth-child(6) {
-  animation-delay: 0.3s;
+  --n: 6;
 }
 
 .photo-thumb:nth-child(7) {
-  animation-delay: 0.35s;
+  --n: 7;
 }
 
 .photo-thumb:nth-child(odd) {
@@ -125,10 +133,12 @@
   z-index: 3;
 }
 
-.photo-thumb:hover {
-  transform: rotate(0deg) translateY(-3px) scale(1.03);
-  box-shadow: 3px 5px 14px rgb(0 0 0 / 30%);
-  z-index: 2;
+@media (hover: hover) {
+  .photo-thumb:hover {
+    transform: rotate(0deg) translateY(-3px) scale(1.03);
+    box-shadow: 3px 5px 14px rgb(0 0 0 / 30%);
+    z-index: 2;
+  }
 }
 
 .photo-more {
@@ -149,10 +159,12 @@
     background 0.15s;
 }
 
-.photo-more:hover {
-  border-color: var(--dusk-gold);
-  color: var(--ink);
-  background: rgb(250 244 230 / 95%);
+@media (hover: hover) {
+  .photo-more:hover {
+    border-color: var(--dusk-gold);
+    color: var(--ink);
+    background: rgb(250 244 230 / 95%);
+  }
 }
 
 /* ===== Photo Lightbox ===== */
@@ -160,7 +172,7 @@
 .lightbox-overlay {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: var(--z-modal);
   background: rgb(26 33 56 / 92%);
   display: flex;
   align-items: center;
@@ -206,8 +218,10 @@
   transition: background 0.2s;
 }
 
-.lightbox-nav:hover {
-  background: rgb(244 237 224 / 30%);
+@media (hover: hover) {
+  .lightbox-nav:hover {
+    background: rgb(244 237 224 / 30%);
+  }
 }
 
 .lightbox-nav.prev {
@@ -239,10 +253,19 @@
   color: rgb(244 237 224 / 70%);
   font-size: 28px;
   cursor: pointer;
+
+  /* Loop 4 UX-08: 閉じボタンのサイズを reminder-toast-close と統一 (32x32 タップターゲット) */
   padding: 8px;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: color 0.2s;
 }
 
-.lightbox-close:hover {
-  color: var(--paper);
+@media (hover: hover) {
+  .lightbox-close:hover {
+    color: var(--paper);
+  }
 }

@@ -43,8 +43,10 @@
   transition: background 0.2s ease;
 }
 
-.kitto-lid:hover {
-  background: rgb(255 255 255 / 10%);
+@media (hover: hover) {
+  .kitto-lid:hover {
+    background: rgb(255 255 255 / 10%);
+  }
 }
 
 .kitto-lid-label {
@@ -184,12 +186,14 @@
 }
 
 /* ホバー：傾きリセットして浮き上がる */
-.kitto-sticker:hover {
-  transform: rotate(0deg) translateY(-3px);
-  box-shadow:
-    0 6px 12px rgb(0 0 0 / 30%),
-    inset 0 1px 0 rgb(255 255 255 / 30%);
-  z-index: 10;
+@media (hover: hover) {
+  .kitto-sticker:hover {
+    transform: rotate(0deg) translateY(-3px);
+    box-shadow:
+      0 6px 12px rgb(0 0 0 / 30%),
+      inset 0 1px 0 rgb(255 255 255 / 30%);
+    z-index: 10;
+  }
 }
 
 .kitto-sticker:active {

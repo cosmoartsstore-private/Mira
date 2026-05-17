@@ -78,12 +78,7 @@ export async function checkDueReminders(): Promise<ReminderEvent[]> {
   return invoke("check_due_reminders");
 }
 
-// StellaRecord DB ファイルの存在を確認する（未インストール検出用）
-export async function checkStellarecordAvailable(): Promise<boolean> {
-  return invoke("check_stellarecord_available");
-}
-
-// StellaRecord に Mira を fastparty アプリとして登録する
+// StellaRecord に Mira をサードパーティアプリとして登録する
 export async function registerToStellarecord(): Promise<string> {
   return invoke("register_to_stellarecord");
 }
@@ -128,4 +123,21 @@ export async function addEvent(
 // 指定 ID の予定イベントを削除する
 export async function removeEvent(id: number): Promise<void> {
   return invoke("remove_event", { id });
+}
+
+// 既存予定イベントを編集する (タイトル / 日時 / 繰り返し / 通知タイミング)
+export async function updateCalendarEvent(
+  id: number,
+  title: string,
+  scheduledAt: string,
+  recurrenceKind: "none" | "weekly",
+  remindMinutesBefore: number,
+): Promise<void> {
+  return invoke("update_calendar_event", {
+    id,
+    title,
+    scheduledAt,
+    recurrenceKind,
+    remindMinutesBefore,
+  });
 }

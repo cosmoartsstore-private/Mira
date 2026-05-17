@@ -43,7 +43,14 @@ pub fn detect_activity_range(conn: &Connection) -> (u8, u8) {
 
     // 開始は p5 を 1 時間早めて余白を取る (saturating_sub で 0 未満防止)
     let start = p5.saturating_sub(1);
-    // 終了は p95 を 2 時間後ろに伸ばす。p95 < p5 (深夜跨ぎ) なら +24 を加算してから 30 で頭打ち
+    // 終了は p95 を 2 時間後ろに伸ばす。p95 < p5 (深夜跨ぎ) なら +24 を加算してから 30 で頭打ち。
+    //
+    // L2 R2-21: 深夜跨ぎ判定の前提。
+    //   StellaRecord の `visits.join_time` は UTC 文字列で格納されているため、上の SELECT で
+    //   `'localtime'` 修飾子を付けて %H を取り出している。よって p5/p95 は **Local TZ 基準**の
+    //   時 (0..23) であり、+24 後の表示時刻 (`HomePage` で h - 24 へ戻す) も Local 上の翌日扱い。
+    //   サマータイム切替日は 1 時間ずれる可能性があるが、5/95% パーセンタイル統計は
+    //   端 1 件のずれを十分吸収するため許容する。
     let end = if p95 >= p5 {
         (p95 + 2).min(30)
     } else {

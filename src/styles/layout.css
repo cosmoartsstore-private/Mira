@@ -4,7 +4,7 @@
   top: 0;
   left: 0;
   right: 0;
-  z-index: 50;
+  z-index: var(--z-overlay);
   background: rgb(244 237 224 / 92%);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--paper-deep);
@@ -48,9 +48,11 @@
   transition: all 0.2s;
 }
 
-.navbar-tab:hover {
-  border-color: var(--dusk-orange);
-  color: var(--dusk-red);
+@media (hover: hover) {
+  .navbar-tab:hover {
+    border-color: var(--dusk-orange);
+    color: var(--dusk-red);
+  }
 }
 
 .navbar-tab.active {
@@ -109,7 +111,7 @@
 .transition-cover {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: var(--z-modal);
   background: linear-gradient(135deg, var(--dusk-orange), var(--dusk-red));
   transform: translateX(100%);
   display: flex;
@@ -226,31 +228,7 @@
 }
 
 .vv-speaker-select {
-  font-family: var(--content-font);
-  font-size: 13px;
-  padding: 7px 28px 7px 12px;
-  border: none;
-  border-bottom: 2px solid rgb(140 170 210 / 40%);
-  background:
-    linear-gradient(to right, rgb(220 80 80 / 30%) 0, rgb(220 80 80 / 30%) 2px, transparent 2px),
-    linear-gradient(135deg, #fefcf6 0%, #faf4e6 100%);
-  color: var(--ink);
   min-width: 240px;
-  cursor: pointer;
-  appearance: none;
-  background-image:
-    linear-gradient(to right, rgb(220 80 80 / 30%) 0, rgb(220 80 80 / 30%) 2px, transparent 2px),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234a3d2e'/%3E%3C/svg%3E");
-  background-repeat: no-repeat, no-repeat;
-  background-position:
-    left center,
-    right 10px center;
-  background-size:
-    2px 100%,
-    10px 6px;
-  transition:
-    border-color 0.3s ease,
-    box-shadow 0.3s ease;
 }
 
 .vv-test-btn {
@@ -283,7 +261,8 @@
   color: var(--ink);
 }
 
-.setting-row select {
+/* `.setting-row select` と `.vv-speaker-select` の共通スタイルは :where() で統合。 */
+:where(.setting-row select, .vv-speaker-select) {
   font-family: var(--content-font);
   font-size: 13px;
   padding: 7px 28px 7px 12px;
@@ -311,15 +290,17 @@
     box-shadow 0.3s ease;
 }
 
-.setting-row select:hover,
-.vv-speaker-select:hover {
-  border-bottom-color: rgb(220 80 80 / 50%);
-  box-shadow: 0 2px 6px rgb(74 61 46 / 10%);
+@media (hover: hover) {
+  :where(.setting-row select, .vv-speaker-select):hover {
+    border-bottom-color: rgb(220 80 80 / 50%);
+    box-shadow: 0 2px 6px rgb(74 61 46 / 10%);
+  }
 }
 
-.setting-row select:focus,
-.vv-speaker-select:focus {
-  outline: none;
+:where(.setting-row select, .vv-speaker-select):focus {
+  /* a11y (WCAG 2.4.7/2.4.11): フォーカス可視性を強化。3px + offset 4px で確実に視認可能にする。 */
+  outline: 3px solid var(--dusk-orange);
+  outline-offset: 4px;
   border-bottom-color: var(--dusk-orange);
   box-shadow: 0 2px 8px rgb(200 99 58 / 15%);
 }
@@ -501,7 +482,8 @@
 }
 
 .vv-status.vv-connected {
-  color: #4a9;
+  /* WCAG AA 達成のため #4a9 → #1a7a66 へ調整 */
+  color: #1a7a66;
 }
 
 .vv-status.vv-disconnected {
@@ -520,12 +502,35 @@
   text-align: center;
 }
 
+/* ===== Confirm Dialog ===== */
+
+/* Loop 4 UX-02: confirmDialog の OK ボタンを primary (var(--ink) 背景 / var(--paper) 文字) で統一する。
+   トークンに --cream が無いため、既存の cream 系トークン --paper をそのまま使う。
+   `.toggle-btn.on.confirm-ok` 二重指定で他の .toggle-btn.on より優先度を確保する。 */
+.toggle-btn.on.confirm-ok {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+/* Loop 4 UX-07: voicevox 等で disabled になった行の視覚的フィードバック。
+   .setting-row-disabled は SettingsPage.ts の updateVoiceControlsState で付与される。
+   通常 .setting-row との差別化のため opacity を下げて文字を弱める。 */
+.setting-row-disabled {
+  opacity: 50%;
+  color: var(--ink-mute);
+}
+
+.setting-row-disabled .label {
+  color: var(--ink-mute);
+}
+
 /* ===== Reminder Toast ===== */
 .reminder-toast {
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 250;
+  z-index: var(--z-toast);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -583,13 +588,23 @@
   font-size: 20px;
   color: var(--ink-mute);
   cursor: pointer;
-  padding: 4px;
+
+  /* Loop 4 UX-08: 閉じボタンのサイズを lightbox-close と統一 (32x32 タップターゲット)。
+     padding: 8px / min-width / min-height で WCAG 推奨の最小タッチ領域を確保する。 */
+  padding: 8px;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
   transition: color 0.2s;
 }
 
-.reminder-toast-close:hover {
-  color: var(--ink);
+@media (hover: hover) {
+  .reminder-toast-close:hover {
+    color: var(--ink);
+  }
 }
 
 /* ===== Responsive ===== */
@@ -618,5 +633,28 @@
   .home-page.focus-mode .memo-paper {
     flex: 1;
     max-width: none;
+  }
+}
+
+@media (width <= 480px) {
+  .page-container {
+    padding: 48px 8px 16px;
+  }
+
+  .navbar {
+    padding: 8px 10px;
+  }
+
+  .navbar-logo {
+    font-size: 26px;
+  }
+
+  .navbar-tab {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .page-head h1 {
+    font-size: 24px;
   }
 }

@@ -2,11 +2,12 @@
 //! `mira_scheduled_events` から発火時刻を迎えた予定を抽出し、通知済みフラグ (`reminded` /
 //! `last_fired_at`) を立てて結果を返す。週次繰り返しと dismiss 履歴も考慮する。
 
-use chrono::Datelike;
+use chrono::{Datelike, NaiveDateTime};
 use serde::Serialize;
 use tauri::State;
 
 use crate::db::DbState;
+use crate::utils::logging;
 
 /// リマインダー通知対象のイベント情報
 #[derive(Serialize, Clone)]
@@ -16,6 +17,36 @@ pub struct ReminderEvent {
     pub scheduled_at: String,
     pub event_type: String,
     pub minutes_until: i64,
+}
+
+/// L5 SQL-Opt-6: `julianday()` 演算は INDEX を完全に無効化するため、
+///   `minutes_until` 計算を Rust 側に移動するヘルパ。
+///   `scheduled_at` は "YYYY-MM-DD HH:MM:SS" を想定 (`normalize_scheduled_at` で保証済)。
+///   parse 失敗時は 0 を返し、SQL 側でフィルタ条件は満たしている前提で表示する。
+fn compute_minutes_until(scheduled_at: &str, now: &chrono::DateTime<chrono::Local>) -> i64 {
+    use chrono::TimeZone;
+    let Ok(naive) = NaiveDateTime::parse_from_str(scheduled_at, "%Y-%m-%d %H:%M:%S") else {
+        // L6 Log-7: scheduled_at は予定情報を含むため redact
+        logging::log_error(
+            "reminder",
+            &format!(
+                "compute_minutes_until parse 失敗: {}",
+                logging::redact(scheduled_at)
+            ),
+        );
+        return 0;
+    };
+    let Some(dt) = chrono::Local.from_local_datetime(&naive).single() else {
+        logging::log_warn(
+            "reminder",
+            &format!(
+                "compute_minutes_until 曖昧時刻: {}",
+                logging::redact(scheduled_at)
+            ),
+        );
+        return 0;
+    };
+    (dt - *now).num_minutes()
 }
 
 /// 通知時刻に達した未通知リマインダーを取得し、通知済みに更新する
@@ -28,57 +59,86 @@ pub struct ReminderEvent {
 ///      `last_fired_at` が今日以前のもの
 ///
 /// 起動通知で dismiss された予定 (`mira_dismissed_events` に `source_ref` 一致) は除外する。
+///
+/// 連続する SQL 操作を 1 トランザクションでまとめる構造上、行数が 100 を超えるため
+/// `too_many_lines` は allow する (SQL リテラルが大半)。
+#[allow(clippy::too_many_lines)]
 #[tauri::command]
 pub fn check_due_reminders(state: State<'_, DbState>) -> Result<Vec<ReminderEvent>, String> {
     let mut mira = crate::db::lock_mira(&state)?;
+    // L2 R2-19: TZ 取り扱い方針 — `chrono::Local::now()` は呼出のたびに OS のローカル
+    //   タイムゾーンを参照するため、夏時間切替や日付境界は呼出時点の最新 TZ で反映される。
+    //   Windows の TZ 設定変更は process 起動中にプッシュ通知されない (`tzdata` キャッシュは
+    //   chrono が PROCESS_TZ_DATA を持たないため毎回 SYSTEMTIME を引く) ため、
+    //   ユーザーが起動中に TZ を変更した場合は再起動を推奨する旨を README で案内する。
     let now = chrono::Local::now();
     let now_str = now.format("%Y-%m-%d %H:%M:%S").to_string();
     let today_str = now.format("%Y-%m-%d").to_string();
 
     // `transaction()` は `&mut self` 必須で借用検査が効くため、後続の prepare/query_map
     // との二重トランザクション混入を機械的に弾ける (`unchecked_transaction()` 不採用)。
-    let tx = mira
-        .transaction()
-        .map_err(|e| e.to_string())?;
+    let tx = mira.transaction().map_err(|e| {
+        logging::log_error("reminder", &format!("transaction 開始失敗: {e}"));
+        "リマインダー処理を開始できませんでした".to_string()
+    })?;
 
-    // dismiss 済 source_ref を一度に取得
+    // dismiss 済 source_ref を一度に取得。取得に失敗した場合は dismiss 状態が
+    // 不明なまま発火させると「dismiss したはずの予定」が再表示されてしまうため、
+    // リマインダー処理自体を skip して次回ポーリングに委ねる (C7)。
+    //
+    // L2 R2-17: ここで取得した `dismissed` は tx 内スナップショットとして関数末尾まで使い回す。
+    //   loop 内で再取得しないこと (再取得すると同じ tx 内で 2 回 SELECT してしまい、
+    //   tx 中に他プロセスが書込んだ場合の整合性が崩れる)。tx.commit() までは一括処理。
     let dismissed: std::collections::HashSet<String> = tx
         .prepare("SELECT source_ref FROM mira_dismissed_events")
         .and_then(|mut s| {
             s.query_map([], |row| row.get::<_, String>(0))
                 .map(|it| it.filter_map(std::result::Result::ok).collect())
         })
-        .unwrap_or_default();
+        .map_err(|e| {
+            logging::log_error("reminder", &format!("dismissed 取得失敗: {e}"));
+            "リマインダーの状態取得に失敗しました".to_string()
+        })?;
 
     // 通常の予定 (非繰り返し)
     // stmt と query_map の戻り値 (MappedRows) は借用関係にあるため、必ず別 let に束縛し
     // ブロック式の末尾でドロップ順を明示する。
+    // L5 SQL-Opt-6: SELECT 側の julianday/CAST/datetime ラッパは scheduled_at INDEX を
+    //   壊すため撤廃。生値を取り出し、minutes_until は Rust 側で chrono から算出する。
+    // L5 SQL-Opt-2: is_recurring は NOT NULL DEFAULT 0 が保証されているため COALESCE 不要。
     let mut stmt = tx
         .prepare(
-            "SELECT id, title, scheduled_at, event_type,
-                    CAST((julianday(scheduled_at) - julianday(?1)) * 1440 AS INTEGER) AS minutes_until
+            "SELECT id, title, scheduled_at, event_type
              FROM mira_scheduled_events
              WHERE reminded = 0
-               AND COALESCE(is_recurring, 0) = 0
+               AND is_recurring = 0
                AND (
                     (datetime(scheduled_at, '-' || remind_minutes_before || ' minutes') <= ?1
-                     AND datetime(scheduled_at) >= ?1)
-                 OR (datetime(scheduled_at) < ?1
-                     AND datetime(scheduled_at) >= datetime(?1, '-1 hour'))
+                     AND scheduled_at >= ?1)
+                 OR (scheduled_at < ?1
+                     AND scheduled_at >= datetime(?1, '-1 hour'))
                )",
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            logging::log_error("reminder", &format!("通常予定 prepare 失敗: {e}"));
+            "リマインダーの取得に失敗しました".to_string()
+        })?;
     let rows = stmt
         .query_map([&now_str], |row| {
+            let scheduled_at: String = row.get(2)?;
+            let minutes_until = compute_minutes_until(&scheduled_at, &now);
             Ok(ReminderEvent {
                 id: row.get(0)?,
                 title: row.get(1)?,
-                scheduled_at: row.get(2)?,
+                scheduled_at,
                 event_type: row.get(3)?,
-                minutes_until: row.get(4)?,
+                minutes_until,
             })
         })
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            logging::log_error("reminder", &format!("通常予定 query_map 失敗: {e}"));
+            "リマインダーの取得に失敗しました".to_string()
+        })?;
     let candidates: Vec<ReminderEvent> = rows.filter_map(std::result::Result::ok).collect();
     drop(stmt);
 
@@ -99,7 +159,10 @@ pub fn check_due_reminders(state: State<'_, DbState>) -> Result<Vec<ReminderEven
                 "UPDATE mira_scheduled_events SET reminded = 1 WHERE id = ?1 AND reminded = 0",
                 [r.id],
             )
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                logging::log_error("reminder", &format!("reminded 更新失敗 (id={}): {e}", r.id));
+                "リマインダーの更新に失敗しました".to_string()
+            })?;
         if updated > 0 {
             reminders.push(r);
         }
@@ -121,14 +184,23 @@ pub fn check_due_reminders(state: State<'_, DbState>) -> Result<Vec<ReminderEven
                  WHERE id = ?2 AND (last_fired_at IS NULL OR last_fired_at != ?1)",
                 rusqlite::params![today_str, r.id],
             )
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                logging::log_error(
+                    "reminder",
+                    &format!("last_fired_at 更新失敗 (id={}): {e}", r.id),
+                );
+                "リマインダーの更新に失敗しました".to_string()
+            })?;
         if updated > 0 {
             accepted_recurring.push(r);
         }
     }
     reminders.extend(accepted_recurring);
 
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| {
+        logging::log_error("reminder", &format!("commit 失敗: {e}"));
+        "リマインダーの保存に失敗しました".to_string()
+    })?;
 
     Ok(reminders)
 }
@@ -143,16 +215,27 @@ fn collect_recurring_due(
     now: &chrono::DateTime<chrono::Local>,
     today_str: &str,
 ) -> Vec<ReminderEvent> {
-    let Ok(mut stmt) = mira.prepare(
+    // L4 R4-Err-9: prepare/query_map 失敗を silent (空 Vec) で握り潰すと、
+    //   週次予定が「実は SQL エラーで一切出ていない」状態が UI から不可視になる。
+    //   現契約 (戻り値 Vec) を壊さず、最低限 eprintln で可視化する。
+    //   将来的には Result<Vec, String> に昇格し、呼出側でユーザーに toast を出す方針。
+    // L5 SQL-Opt-2: is_recurring は NOT NULL DEFAULT 0 / recurrence_kind は週次以外 NULL なので、
+    //   = 比較で十分 (= NULL は常に外れる)。last_fired_at は NULL を許容する設計なので
+    //   ここだけ COALESCE を残す (空文字との比較で「未発火」を表現)。
+    let mut stmt = match mira.prepare(
         "SELECT id, title, scheduled_at, event_type, remind_minutes_before, COALESCE(last_fired_at, '')
          FROM mira_scheduled_events
-         WHERE COALESCE(is_recurring, 0) = 1
-           AND COALESCE(recurrence_kind, '') = 'weekly'",
-    ) else {
-        return Vec::new();
+         WHERE is_recurring = 1
+           AND recurrence_kind = 'weekly'",
+    ) {
+        Ok(s) => s,
+        Err(e) => {
+            logging::log_error("reminder", &format!("collect_recurring_due prepare 失敗: {e}"));
+            return Vec::new();
+        }
     };
 
-    let Ok(rows) = stmt.query_map([], |row| {
+    let rows = match stmt.query_map([], |row| {
         Ok((
             row.get::<_, i64>(0)?,
             row.get::<_, String>(1)?,
@@ -161,8 +244,15 @@ fn collect_recurring_due(
             row.get::<_, i64>(4)?,
             row.get::<_, String>(5)?,
         ))
-    }) else {
-        return Vec::new();
+    }) {
+        Ok(r) => r,
+        Err(e) => {
+            logging::log_error(
+                "reminder",
+                &format!("collect_recurring_due query_map 失敗: {e}"),
+            );
+            return Vec::new();
+        }
     };
 
     let mut result = Vec::new();
@@ -201,11 +291,44 @@ fn next_fire_today(
 ) -> Option<chrono::DateTime<chrono::Local>> {
     use chrono::TimeZone;
     // scheduled_at は "YYYY-MM-DD HH:MM:SS" または ISO 形式を想定
-    let date_part = scheduled_at.split([' ', 'T']).next()?;
-    let time_part = scheduled_at.split([' ', 'T']).nth(1)?;
+    // L2 R2-22: 元実装は split 失敗をすべて silent (None) で握り潰していたため、
+    //   想定外形式の混入を検知できなかった。各 fail 箇所で値を eprintln する。
+    let Some(date_part) = scheduled_at.split([' ', 'T']).next() else {
+        // L6 Log-7: scheduled_at は予定 PII を含む可能性ありで redact
+        logging::log_error(
+            "reminder",
+            &format!(
+                "scheduled_at parse failed (no date part): {}",
+                logging::redact(scheduled_at)
+            ),
+        );
+        return None;
+    };
+    let Some(time_part) = scheduled_at.split([' ', 'T']).nth(1) else {
+        logging::log_error(
+            "reminder",
+            &format!(
+                "scheduled_at parse failed (no time part): {}",
+                logging::redact(scheduled_at)
+            ),
+        );
+        return None;
+    };
 
     // scheduled_at の曜日を取得し、今日の曜日と異なれば発火対象外
-    let base_date = chrono::NaiveDate::parse_from_str(date_part, "%Y-%m-%d").ok()?;
+    let base_date = match chrono::NaiveDate::parse_from_str(date_part, "%Y-%m-%d") {
+        Ok(d) => d,
+        Err(e) => {
+            logging::log_error(
+                "reminder",
+                &format!(
+                    "scheduled_at date parse failed: {} ({e})",
+                    logging::redact(scheduled_at)
+                ),
+            );
+            return None;
+        }
+    };
     if base_date.weekday() != now.weekday() {
         return None;
     }
@@ -215,9 +338,60 @@ fn next_fire_today(
     }
 
     let parts: Vec<&str> = time_part.split(':').collect();
-    let h: u32 = parts.first()?.parse().ok()?;
-    let m: u32 = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
-    let s: u32 = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(0);
+    let Some(h_str) = parts.first() else {
+        logging::log_error(
+            "reminder",
+            &format!("scheduled_at time empty: {}", logging::redact(scheduled_at)),
+        );
+        return None;
+    };
+    let Ok(h) = h_str.parse::<u32>() else {
+        logging::log_error(
+            "reminder",
+            &format!(
+                "scheduled_at hour parse failed: {}",
+                logging::redact(scheduled_at)
+            ),
+        );
+        return None;
+    };
+    // L4 R4-Err-5: 元実装は minute/second の parse 失敗を `unwrap_or(0)` で握り潰しており、
+    //   "08:XX:30" のような部分的に壊れた値が "08:00:30" として扱われ、
+    //   ユーザーが意図しない時刻に発火していた可能性があった。
+    //   `parts` に該当インデックスが存在する場合は parse 失敗を fail-fast で None 返す
+    //   (省略形 "08" や "08:30" は引き続き許容、書かれている分だけ厳格に検証)。
+    let m: u32 = match parts.get(1) {
+        Some(s) => match s.parse::<u32>() {
+            Ok(v) => v,
+            Err(e) => {
+                logging::log_error(
+                    "reminder",
+                    &format!(
+                        "scheduled_at minute parse failed: {} ({e})",
+                        logging::redact(scheduled_at)
+                    ),
+                );
+                return None;
+            }
+        },
+        None => 0,
+    };
+    let s: u32 = match parts.get(2) {
+        Some(s) => match s.parse::<u32>() {
+            Ok(v) => v,
+            Err(e) => {
+                logging::log_error(
+                    "reminder",
+                    &format!(
+                        "scheduled_at second parse failed: {} ({e})",
+                        logging::redact(scheduled_at)
+                    ),
+                );
+                return None;
+            }
+        },
+        None => 0,
+    };
     let date = now.date_naive();
     let naive = date.and_hms_opt(h, m, s)?;
     chrono::Local.from_local_datetime(&naive).single()

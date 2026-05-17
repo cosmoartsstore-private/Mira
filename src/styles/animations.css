@@ -14,3 +14,33 @@
 .loading {
   animation: pulse 1.5s ease-in-out infinite;
 }
+
+/* memo.css / home.css / calendar.css 等で共通利用される入場アニメ */
+@keyframes memo-fade-up {
+  from {
+    opacity: 0%;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 100%;
+    transform: translateY(0);
+  }
+}
+
+/* prefers-reduced-motion: WCAG 2.3.3 Animation from Interactions に従い「装飾的なアニメーション」のみを
+   抑制する。
+   - `animation-*` (keyframes 由来): 多くは loading pulse 等の装飾なので無効化。
+   - `transition-*` (UI 状態遷移): hover/active/focus の即時フィードバックは UX 上必要なので
+     0.01ms には潰さず、そのまま残す。
+   `!important` は OS 設定 (reduced motion) を尊重するための WCAG 標準パターンで必要なため局所許可。 */
+/* stylelint-disable declaration-no-important */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+/* stylelint-enable declaration-no-important */

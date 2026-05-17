@@ -41,6 +41,37 @@ function getFixedHolidays(year: number): Record<string, string> {
   return map;
 }
 
+// L4 D-I18N-5: 将来の locale 拡張に備えた汎用エントリポイント。
+//
+// 現状は ja-JP のみ実装し、それ以外の locale は空配列を返す (例外で起動を止めない設計)。
+// 内部実装は従来の getJapaneseHolidays をそのまま呼ぶ。
+// 将来 en-US (米国祝日) を追加する場合は、ここに locale 分岐を足し、
+// 専用関数 (例: getUsHolidays) を別ファイルで実装する想定。
+//
+// API メモ:
+//   - locale 引数は BCP 47 ロケール文字列 (例: "ja-JP", "en-US")。
+//   - 未対応 locale は空配列 (= 祝日無し扱い) で fail-safe する。throw しないのは、
+//     CalendarPage がカレンダー描画を継続できるようにするため。
+//   - 拡張時はこの関数経由で getJapaneseHolidays を内部呼出する形を維持し、
+//     呼出側 (CalendarPage 等) は getHolidays(year, month, locale) へ移行する。
+export type SupportedHolidayLocale = "ja-JP";
+
+export function getHolidays(
+  year: number,
+  month: number,
+  // `string` ではなく BCP-47 リテラル | string の合成型は eslint
+  // (no-redundant-type-constituents) で潰されるため、外部からは生 string を受け、
+  // 内部で SupportedHolidayLocale 判定に絞り込む。
+  // 型注釈を省くのは no-inferrable-types ルール準拠 (= デフォルト値から推論される)。
+  locale = "ja-JP",
+): Holiday[] {
+  if (locale === "ja-JP") {
+    return getJapaneseHolidays(year, month);
+  }
+  // 未対応 locale は空配列で返す (CalendarPage を blocking しない)
+  return [];
+}
+
 export function getJapaneseHolidays(year: number, month: number): Holiday[] {
   const holidays: Holiday[] = [];
 

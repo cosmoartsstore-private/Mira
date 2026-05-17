@@ -26,10 +26,13 @@ pub fn extract(date: &str, stella: &Connection) -> Vec<MemokittoChip> {
          ORDER BY MIN(join_time)",
     ) {
         if let Ok(rows) = stmt.query_map([date], |row| row.get::<_, String>(0)) {
-            chips.extend(rows.filter_map(std::result::Result::ok).map(|name| MemokittoChip {
-                label: name,
-                category: "world".into(),
-            }));
+            chips.extend(
+                rows.filter_map(std::result::Result::ok)
+                    .map(|name| MemokittoChip {
+                        label: name,
+                        category: "world".into(),
+                    }),
+            );
         }
     }
 
@@ -44,10 +47,13 @@ pub fn extract(date: &str, stella: &Connection) -> Vec<MemokittoChip> {
          ORDER BY fu.account_name",
     ) {
         if let Ok(rows) = stmt.query_map([date], |row| row.get::<_, String>(0)) {
-            chips.extend(rows.filter_map(std::result::Result::ok).map(|name| MemokittoChip {
-                label: name,
-                category: "person".into(),
-            }));
+            chips.extend(
+                rows.filter_map(std::result::Result::ok)
+                    .map(|name| MemokittoChip {
+                        label: name,
+                        category: "person".into(),
+                    }),
+            );
         }
     }
 

@@ -6,6 +6,27 @@ interface SnapshotData {
   stats: { label: string; value: string }[];
 }
 
+// L4: 画面表示テキストの局所定数化。i18n フレームワークは導入しないが、
+// 翻訳/文言調整を 1 箇所に集約できる形にしておく (将来の i18n 移行時の起点になる)。
+// 関数/クラス名は触らないため、英語コンテキスト由来の "snapshot" 識別子は残置。
+const MESSAGES = {
+  notifyArrival: "星のたよりが届きました",
+  // L5: 用語統一 → 「振り返り」。元の "Quarterly Summary" は意味重視で「四半期振り返り」へ
+  defaultGreeting: "この四半期の振り返りをお届けします。",
+  greetingLead: "こんにちは。",
+  // 4 つの既定統計ラベル (DebugPage 等から data 未指定で呼ばれた場合のプレースホルダー)
+  statLabels: {
+    totalTime: "総滞在時間",
+    activeDays: "活動した日数",
+    peopleMet: "出会った人",
+    photos: "写真",
+  },
+  emptyValue: "—",
+  letterFooterLine: "またお便りします。",
+  signature: "Mira",
+  closeHint: "クリックで閉じる",
+} as const;
+
 const SEASON_LEAVES: Record<Season, string> = {
   spring:
     '<path d="M 30 8 C 22 14 18 24 22 32 C 26 40 30 50 30 50 C 30 50 34 40 38 32 C 42 24 38 14 30 8 Z" fill="#f4b8c8" stroke="#d28aa6" stroke-width="0.8"/><path d="M 30 18 L 30 46" stroke="#c8758a" stroke-width="0.5" opacity="0.5"/>',
@@ -50,12 +71,12 @@ export function playSnapshot(data?: SnapshotData): void {
   if (document.querySelector(".env-stage")) return;
 
   const season = data?.season ?? getCurrentSeason();
-  const greeting = data?.greeting ?? "この四半期のあなたの記録が、ここに集まりました。";
+  const greeting = data?.greeting ?? MESSAGES.defaultGreeting;
   const stats = data?.stats ?? [
-    { label: "Total Time", value: "—" },
-    { label: "Active Days", value: "—" },
-    { label: "People Met", value: "—" },
-    { label: "Photos", value: "—" },
+    { label: MESSAGES.statLabels.totalTime, value: MESSAGES.emptyValue },
+    { label: MESSAGES.statLabels.activeDays, value: MESSAGES.emptyValue },
+    { label: MESSAGES.statLabels.peopleMet, value: MESSAGES.emptyValue },
+    { label: MESSAGES.statLabels.photos, value: MESSAGES.emptyValue },
   ];
 
   const stage = document.createElement("div");
@@ -73,7 +94,7 @@ export function playSnapshot(data?: SnapshotData): void {
   notify.className = "env-letter-notify";
   notify.innerHTML = `
     <div class="env-letter-text">
-      <span class="env-letter-text-inner">星のたよりが届きました</span>
+      <span class="env-letter-text-inner">${MESSAGES.notifyArrival}</span>
     </div>
   `;
   stage.appendChild(notify);
@@ -115,11 +136,11 @@ export function playSnapshot(data?: SnapshotData): void {
     .join("");
   letter.innerHTML = `
     <div class="letter-body">
-      <div class="letter-greeting">こんにちは。<br>${greeting}</div>
+      <div class="letter-greeting">${MESSAGES.greetingLead}<br>${greeting}</div>
       <div class="summary-grid-q">${statsHtml}</div>
       <div class="letter-footer">
-        またお便りします。<br>
-        <span class="signature">Mira</span>
+        ${MESSAGES.letterFooterLine}<br>
+        <span class="signature">${MESSAGES.signature}</span>
       </div>
     </div>
   `;
@@ -128,7 +149,7 @@ export function playSnapshot(data?: SnapshotData): void {
   // Close hint
   const closeHint = document.createElement("div");
   closeHint.className = "env-close-hint";
-  closeHint.textContent = "click anywhere to close";
+  closeHint.textContent = MESSAGES.closeHint;
   stage.appendChild(closeHint);
 
   document.body.appendChild(stage);
@@ -185,19 +206,26 @@ async function runAnimation(
   closeHint.classList.add("show");
 
   // Phase 9: Close on click
+  // Loop 4 UX-09: Esc 衝突解消 — lightbox / focusedDate / 各 popup の Esc ハンドラと同居しないよう、
+  // capture フェーズで先取りし stopImmediatePropagation で他の Esc 反応を抑止する。
+  // 旧実装は bubble フェーズ登録だったため、envelope を閉じると同時に HomePage の
+  // focusedDate Esc ハンドラまで連鎖発火する事故があった。
   let closed = false;
   const escHandler = (e: KeyboardEvent): void => {
-    if (e.key === "Escape") close();
+    if (e.key !== "Escape") return;
+    e.stopImmediatePropagation();
+    close();
   };
   const close = (): void => {
     if (closed) return;
     closed = true;
-    document.removeEventListener("keydown", escHandler);
+    // capture フラグ付きで登録したので、解除も同じ capture フラグで呼ぶ必要がある
+    document.removeEventListener("keydown", escHandler, true);
     stage.removeEventListener("click", close);
     stage.style.opacity = "0";
     stage.style.transition = "opacity 0.5s";
     setTimeout(() => stage.remove(), 500);
   };
   stage.addEventListener("click", close);
-  document.addEventListener("keydown", escHandler);
+  document.addEventListener("keydown", escHandler, true);
 }

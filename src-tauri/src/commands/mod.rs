@@ -14,3 +14,8 @@ pub mod stella;
 /// `calendar::add_event` と `settings::set_setting` の両方で参照されるため、
 /// 重複定義を避けるためにここに集約する。
 pub const REMIND_MIN_MAX: i64 = 1440;
+
+/// メモ最大文字数のデフォルト (`mira_settings.memo_max_length` 未設定時のフォールバック)。
+/// L2 R2-18: `journal::save_day_memo` と `settings::get_settings` の両方が
+/// `unwrap_or(1000)` していたのを集約参照する。
+pub const DEFAULT_MEMO_MAX_LENGTH: i64 = 1000;

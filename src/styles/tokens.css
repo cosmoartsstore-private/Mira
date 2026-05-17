@@ -17,12 +17,55 @@
   --marker-world: rgb(212 154 74 / 35%);
   --marker-person: rgb(210 138 166 / 35%);
   --marker-video: rgb(108 138 178 / 35%);
-  --ui-font: "Noto Sans JP", sans-serif;
-  --content-font: "Yomogi", sans-serif;
-  --memo-font: "Yomogi", sans-serif;
-  --settings-font: "Kiwi Maru", sans-serif;
-  --logo-font: "Allura", cursive;
-  --heading-font: "Cormorant Garamond", serif;
-  --transition-duration: 480ms;
+
+  /* ===== Font stack =====
+     L4 D-I18N-6: Google Fonts への接続失敗時に備え、OS 同梱の日本語書体を
+     fallback として明示する。指定順は「Google Fonts 名 → ローカル相当 (日本語 OS 同梱) →
+     英語サンセリフ → ジェネリック」の優先順。
+     - --ui-font:       本文 / ナビなど常用 UI (font_scope="all" の時はメモも含む)
+     - --content-font:  メモ・コンテンツ用 (font_scope="content_only" の時のみ memo に適用)
+     - --memo-font:     メモ専用 (settings の font_family で動的差替対象)
+     - --settings-font: 設定画面の見出し用
+     - --logo-font:     ロゴ用 (装飾、フォールバックは cursive)
+     - --heading-font:  日付見出し等の英字セリフ
+     ローカル名は Windows 標準 (Yu Gothic UI / 游ゴシック / 游明朝) と macOS 標準
+     (Hiragino Sans / ヒラギノ明朝 ProN) を両方記載する。 */
+  --ui-font: "Noto Sans JP", "Yu Gothic UI", "Hiragino Sans", "游ゴシック", "Meiryo", sans-serif;
+  --content-font: "Yomogi", "Yu Mincho", "ヒラギノ明朝 ProN", "游明朝", serif;
+  --memo-font: "Yomogi", "Yu Mincho", "ヒラギノ明朝 ProN", "游明朝", serif;
+  --settings-font: "Kiwi Maru", "Yu Gothic UI", "Hiragino Sans", "游ゴシック", sans-serif;
+  --logo-font: "Allura", "Brush Script MT", cursive;
+  --heading-font: "Cormorant Garamond", "Times New Roman", "Yu Mincho", "游明朝", serif;
   --transition-easing: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ===== z-index 階層 ===== */
+  --z-content: 1;
+  --z-overlay: 100;
+  --z-modal: 200;
+  --z-toast: 300;
+  --z-snapshot: 400;
+
+  /* ===== JS で動的に設定される CSS 変数の初期値 (fallback) ===== */
+  --zoom-scale: 1;
+  --photo-tilt: 0deg;
+  --sticker-color: #b8884a;
+  --rot: 0deg;
+  --ty: 0;
+  --nb-line-height: 38px;
+  --nb-margin-left: 48px;
+  --start-x: 50vw;
+  --start-y: 15vh;
+  --mid-y: 45vh;
+  --end-y: 70vh;
+  --loop-cx: 50vw;
+  --loop-y: 35vh;
+  --loop-r: 6vw;
+  --spin: 1080deg;
+  --wobble: 15px;
+  --drift: 20px;
+  --dur: 7s;
+
+  /* ===== Theme: 背景 radial gradient stops ===== */
+  --bg-radial-stop-a: rgb(212 154 74 / 8%);
+  --bg-radial-stop-b: rgb(45 58 92 / 6%);
 }

@@ -72,8 +72,10 @@
   border-left: none;
 }
 
-.day-head:hover {
-  background: rgb(212 154 74 / 10%);
+@media (hover: hover) {
+  .day-head:hover {
+    background: rgb(212 154 74 / 10%);
+  }
 }
 
 .day-head .wd {
@@ -111,8 +113,10 @@
   cursor: default;
 }
 
-.day-head.inactive:hover {
-  background: transparent;
+@media (hover: hover) {
+  .day-head.inactive:hover {
+    background: transparent;
+  }
 }
 
 /* ===== Lane Body (time grid) ===== */
@@ -339,8 +343,10 @@
   transition: background 0.2s;
 }
 
-.notif-pin:hover {
-  background: rgb(212 154 74 / 40%);
+@media (hover: hover) {
+  .notif-pin:hover {
+    background: rgb(212 154 74 / 40%);
+  }
 }
 
 .notif-pin::before {
@@ -376,36 +382,38 @@
   }
 }
 
+/* day-head 段階入場: --i (0..n) を step とし 0.03s 倍率で遅延を生成 */
 .day-head {
   animation: lane-fade-in 0.35s ease both;
+  animation-delay: calc(var(--i, 0) * 0.03s);
 }
 
 .day-head:nth-of-type(1) {
-  animation-delay: 0.03s;
+  --i: 1;
 }
 
 .day-head:nth-of-type(2) {
-  animation-delay: 0.06s;
+  --i: 2;
 }
 
 .day-head:nth-of-type(3) {
-  animation-delay: 0.09s;
+  --i: 3;
 }
 
 .day-head:nth-of-type(4) {
-  animation-delay: 0.12s;
+  --i: 4;
 }
 
 .day-head:nth-of-type(5) {
-  animation-delay: 0.15s;
+  --i: 5;
 }
 
 .day-head:nth-of-type(6) {
-  animation-delay: 0.18s;
+  --i: 6;
 }
 
 .day-head:nth-of-type(7) {
-  animation-delay: 0.21s;
+  --i: 7;
 }
 
 .visit-block {

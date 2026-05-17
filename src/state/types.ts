@@ -37,8 +37,10 @@ export interface PersonChip {
 }
 
 // メモ内の自動検出マーカー範囲。
-// start/end は **UTF-16 コードユニット位置** (JS 文字列インデックス互換)。
-// Rust 側は UTF-8 バイト位置から変換して返す (logic/marker.rs)。
+// start/end は **Unicode scalar (char) 位置** (`Array.from(memo).length` と同単位)。
+// L7-MarkerUnit: フロント `getSelectionOffsets` / バックエンド `marker.rs` /
+//   `journal.rs` の検証 (`add_manual_marker`) / 永続化 (`manual_markers.start_pos`) を
+//   全層 scalar 単位に統一済み。絵文字 (例: "🎉") を含むメモでもずれない。
 export interface MarkerSpan {
   start: number;
   end: number;
@@ -59,7 +61,8 @@ export interface PhotoEntry {
 }
 
 // ユーザー作成の手動マーカー。
-// start/end は UTF-16 コードユニット位置（フロントの getSelectionOffsets と整合）。
+// start/end は **Unicode scalar (char) 位置** (フロントの `getSelectionOffsets` と整合;
+// `Array.from(memo).length` と同単位)。
 export interface ManualMarker {
   id: number;
   start: number;
@@ -88,6 +91,8 @@ export interface CalendarEvent {
   title: string;
   scheduled_at: string;
   remind_minutes_before: number;
+  // 繰り返し種別 ("weekly" もしくは null = 非繰り返し)。編集モーダルの初期値判定に使う。
+  recurrence_kind: string | null;
 }
 
 // 月別データ（アクティブ日・イベント一覧）
@@ -117,6 +122,11 @@ export interface ScheduleNotification {
 }
 
 // アプリ全体の設定値（DB の mira_settings テーブルと対応）
+//
+// Loop 9 R2-M-20: `remind_minutes_before_default` も DB ベースに統合済み。
+// バックエンド `get_settings` がこのフィールドを返すようになったため、フロント側も
+// localStorage キャッシュを撤去して MiraSettings から直接参照する
+// (CalendarPage / SettingsPage は `settings.get().remind_minutes_before_default` を見る)。
 export interface MiraSettings {
   font_family: string;
   font_scope: string;
@@ -129,6 +139,7 @@ export interface MiraSettings {
   reminder_sound_enabled: boolean;
   view_hour_start: number;
   view_hour_end: number;
+  remind_minutes_before_default: number;
 }
 
 // リマインダー発火時のイベントデータ（ポーリングで取得）

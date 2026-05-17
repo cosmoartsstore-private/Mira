@@ -5,10 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mira</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+    <!--
+      L3 R3-Sec-5: Subresource Integrity (SRI) について
+        - Google Fonts の CSS は User-Agent ごとに動的生成されるため SRI hash 固定不可。
+        - crossorigin="anonymous" を明示し、認証情報なしリクエストを宣言する (CORS 経路を限定)。
+        - リスク受容: CSP の style-src / font-src で fonts.googleapis.com / fonts.gstatic.com
+          を許可しているが、Google CDN への信頼に依存する点が残る。
+        - 望ましい対策: フォントを `src/assets/fonts/` に同梱しオフライン化 (今後の規模拡大判断)。
+    -->
+    <!--
+      L3 R3-Perf-Font: 必須 UI 系書体 (CSS から無条件参照される) のみ初期読込。
+        - Allura(ロゴ) / Cormorant Garamond(見出し) / Noto Sans JP(本文) /
+          Kiwi Maru(設定画面) / Hachi Maru Pop(memokitto.css) は常時必要。
+        - font-display: swap でレンダブロックを回避する。
+      L4 D-I18N-6: Google Fonts が読込失敗した場合、CSS の font-family は
+        styles/tokens.css の --ui-font / --memo-font 等で定義した
+        OS ローカル書体 (Yu Gothic UI / Hiragino Sans / 游ゴシック等) にフォールバックする。
+        本 link はあくまで「装飾書体の優先読込」用で、ネットワーク不通時もアプリは
+        ローカル書体で表示可能 (見た目は劣化するが機能停止しない)。
+    -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Sans+JP:wght@300;400;500;600&family=Yomogi&family=Yusei+Magic&family=Kiwi+Maru:wght@400;500&family=Hachi+Maru+Pop&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Allura&family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Noto+Sans+JP:wght@300;400;500;600&family=Kiwi+Maru:wght@400;500&family=Hachi+Maru+Pop&display=swap"
       rel="stylesheet"
+      crossorigin="anonymous"
+    />
+    <!--
+      L3 R3-Perf-Font: ユーザー選択型メモ書体 link。初期値は default の Yomogi のみ。
+      SettingsPage で書体変更時、この link[data-mira-memo-font] の href を差し替えて
+      選択中の 1 書体のみを取得する (未選択の Yusei Magic 等は初期 bundle に含めない)。
+    -->
+    <link
+      data-mira-memo-font
+      href="https://fonts.googleapis.com/css2?family=Yomogi&display=swap"
+      rel="stylesheet"
+      crossorigin="anonymous"
     />
   </head>
   <body>

@@ -1,5 +1,28 @@
 type Season = "sakura" | "leaf" | "momiji" | "snow";
 
+// L4: 画面表示テキストを冒頭定数化。i18n フレームワーク導入は park (規模未達)。
+// 関数/クラス名は触らないため "summary" 識別子は残置 (L5 用語統一は表示文言のみ)。
+const MESSAGES = {
+  logo: "Mira",
+  // L5: "Quarterly Summary" → 用語統一で「四半期振り返り」
+  periodSuffix: "四半期振り返り",
+  // 統計プレースホルダー (現在はハードコード値だが将来差し替え用にラベルだけ集約)
+  statLabels: {
+    loginDays: "日間ログイン",
+    totalStay: "総滞在時間",
+    peopleMet: "出会った人",
+  },
+  thanksMessage: "素敵な思い出をありがとう",
+  closeButton: "閉じる",
+  // 季節ラベル ("YYYY 春/夏/秋/冬"). 月境界は getSeason() と必ず揃える。
+  seasonLabel: {
+    spring: "春",
+    summer: "夏",
+    autumn: "秋",
+    winter: "冬",
+  },
+} as const;
+
 const SEASON_SVGS: Record<Season, string[]> = {
   sakura: [
     `<svg viewBox="0 0 12 16"><path fill="#f4a7b9" d="M6,0 C3,0 0,4 0,8 C0,12 2.5,16 6,16 C9.5,16 12,12 12,8 C12,4 9,0 6,0Z"/></svg>`,
@@ -51,25 +74,25 @@ export function playSummaryAnimation(overrideMonth?: number): void {
   content.className = "summary-content";
   content.innerHTML = `
     <div class="summary-header">
-      <div class="summary-logo">Mira</div>
-      <div class="summary-period">${seasonLabel(month)} — Quarterly Summary</div>
+      <div class="summary-logo">${MESSAGES.logo}</div>
+      <div class="summary-period">${seasonLabel(month)} ${MESSAGES.periodSuffix}</div>
     </div>
     <div class="summary-stats">
       <div class="summary-stat">
         <div class="summary-stat-num">42</div>
-        <div class="summary-stat-label">日間ログイン</div>
+        <div class="summary-stat-label">${MESSAGES.statLabels.loginDays}</div>
       </div>
       <div class="summary-stat">
         <div class="summary-stat-num">128h</div>
-        <div class="summary-stat-label">総滞在時間</div>
+        <div class="summary-stat-label">${MESSAGES.statLabels.totalStay}</div>
       </div>
       <div class="summary-stat">
         <div class="summary-stat-num">67</div>
-        <div class="summary-stat-label">出会った人</div>
+        <div class="summary-stat-label">${MESSAGES.statLabels.peopleMet}</div>
       </div>
     </div>
-    <div class="summary-message">素敵な思い出をありがとう</div>
-    <button class="summary-close">閉じる</button>
+    <div class="summary-message">${MESSAGES.thanksMessage}</div>
+    <button class="summary-close">${MESSAGES.closeButton}</button>
   `;
 
   overlay.appendChild(canvas);
@@ -82,14 +105,20 @@ export function playSummaryAnimation(overrideMonth?: number): void {
   const spawnInterval = isSnow ? 300 : 600;
   const initialBurst = isSnow ? 25 : 14;
 
+  // M22: 初期バースト用 setTimeout の id を貯めて close 時に全 clear する (旧実装は閉じても残留して spawnPetal が走り続けていた)
+  const spawnTimers: ReturnType<typeof setTimeout>[] = [];
+  // close 時の remove() 用 setTimeout も同様に管理する
+  let removeTimer: ReturnType<typeof setTimeout> | null = null;
+
   for (let i = 0; i < initialBurst; i++) {
-    setTimeout(
+    const t = setTimeout(
       () => {
         if (!overlay.parentNode) return;
         spawnPetal(canvas, season);
       },
       i * (isSnow ? 150 : 300) + Math.random() * 150,
     );
+    spawnTimers.push(t);
   }
 
   const interval = setInterval(() => {
@@ -100,12 +129,40 @@ export function playSummaryAnimation(overrideMonth?: number): void {
     spawnPetal(canvas, season);
   }, spawnInterval);
 
-  const closeBtn = content.querySelector(".summary-close")!;
-  closeBtn.addEventListener("click", () => {
+  // H7: Esc / overlay クリックでも閉じられるよう、close を共通化する
+  let closed = false;
+  const close = (): void => {
+    if (closed) return;
+    closed = true;
     clearInterval(interval);
+    // M22: 未発火の spawn 用タイマーを全部解除
+    for (const t of spawnTimers) clearTimeout(t);
+    spawnTimers.length = 0;
+    document.removeEventListener("keydown", keyHandler, true);
+    overlay.removeEventListener("click", overlayClickHandler);
     overlay.classList.remove("visible");
-    setTimeout(() => overlay.remove(), 600);
-  });
+    if (removeTimer !== null) clearTimeout(removeTimer);
+    removeTimer = setTimeout(() => overlay.remove(), 600);
+  };
+
+  // H7: Esc キーで閉じる (snapshot 演出と挙動を揃える)。capture で受けて他の Esc ハンドラと衝突しないようにする
+  function keyHandler(e: KeyboardEvent): void {
+    if (e.key === "Escape") {
+      e.stopImmediatePropagation();
+      close();
+    }
+  }
+  // H7: overlay (背景) クリックで閉じる。content 内クリックは伝播させない
+  function overlayClickHandler(e: MouseEvent): void {
+    if (e.target === overlay) close();
+  }
+  document.addEventListener("keydown", keyHandler, true);
+  overlay.addEventListener("click", overlayClickHandler);
+  // content 内クリックは閉じない (閉じるボタン以外で誤閉鎖しないよう)
+  content.addEventListener("click", (e) => e.stopPropagation());
+
+  const closeBtn = content.querySelector(".summary-close")!;
+  closeBtn.addEventListener("click", close);
 }
 
 // 1枚の花弁/葉/雪を生成し、CSS 変数でランダムな軌道/速度を与える。
@@ -162,8 +219,8 @@ function spawnPetal(canvas: HTMLElement, season: Season): void {
 // 月から表示用ラベル "YYYY 春/夏/秋/冬" を返す。境界は getSeason() と必ず揃える。
 function seasonLabel(month: number): string {
   const year = new Date().getFullYear();
-  if (month >= 3 && month <= 5) return `${year} 春`;
-  if (month >= 6 && month <= 8) return `${year} 夏`;
-  if (month >= 9 && month <= 11) return `${year} 秋`;
-  return `${year} 冬`;
+  if (month >= 3 && month <= 5) return `${year} ${MESSAGES.seasonLabel.spring}`;
+  if (month >= 6 && month <= 8) return `${year} ${MESSAGES.seasonLabel.summer}`;
+  if (month >= 9 && month <= 11) return `${year} ${MESSAGES.seasonLabel.autumn}`;
+  return `${year} ${MESSAGES.seasonLabel.winter}`;
 }

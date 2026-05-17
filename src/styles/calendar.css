@@ -28,8 +28,11 @@
 }
 
 .cal-arrow {
-  width: 36px;
-  height: 36px;
+  /* a11y: WCAG 2.5.5 / 2.5.8 (Target Size) の最小 44x44px を確保。 */
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border: 1px solid var(--rule);
   background: transparent;
   cursor: pointer;
@@ -45,9 +48,11 @@
     color 0.2s;
 }
 
-.cal-arrow:hover {
-  border-color: var(--dusk-orange);
-  color: var(--dusk-red);
+@media (hover: hover) {
+  .cal-arrow:hover {
+    border-color: var(--dusk-orange);
+    color: var(--dusk-red);
+  }
 }
 
 .calendar-grid {
@@ -89,8 +94,10 @@
   position: relative;
 }
 
-.cal-day:hover {
-  background: var(--paper-warm);
+@media (hover: hover) {
+  .cal-day:hover {
+    background: var(--paper-warm);
+  }
 }
 
 .cal-day .num {
@@ -136,8 +143,10 @@
   min-height: 90px;
 }
 
-.cal-day.empty:hover {
-  background: rgb(244 237 224 / 50%);
+@media (hover: hover) {
+  .cal-day.empty:hover {
+    background: rgb(244 237 224 / 50%);
+  }
 }
 
 .cal-day.today {
@@ -163,8 +172,10 @@
   cursor: default;
 }
 
-.cal-day.no-data:hover {
-  background: var(--paper);
+@media (hover: hover) {
+  .cal-day.no-data:hover {
+    background: var(--paper);
+  }
 }
 
 .cal-legend {
@@ -212,15 +223,17 @@
   transition: background 0.2s;
 }
 
-.cal-event-tag:hover {
-  background: var(--dusk-red);
+@media (hover: hover) {
+  .cal-event-tag:hover {
+    background: var(--dusk-red);
+  }
 }
 
 /* ===== Calendar Popup ===== */
 
 .cal-popup {
   position: absolute;
-  z-index: 100;
+  z-index: var(--z-overlay);
   top: 100%;
   left: 0;
   min-width: 240px;
@@ -262,7 +275,8 @@
 }
 
 .cal-popup-input:focus {
-  outline: none;
+  outline: 2px solid var(--dusk-orange);
+  outline-offset: -2px;
   border-color: var(--dusk-orange);
 }
 
@@ -320,14 +334,16 @@
   border-color: var(--ink);
 }
 
-.cal-popup-save:hover {
-  background: var(--dusk-red);
-  border-color: var(--dusk-red);
-}
+@media (hover: hover) {
+  .cal-popup-save:hover {
+    background: var(--dusk-red);
+    border-color: var(--dusk-red);
+  }
 
-.cal-popup-cancel:hover {
-  border-color: var(--dusk-orange);
-  color: var(--ink);
+  .cal-popup-cancel:hover {
+    border-color: var(--dusk-orange);
+    color: var(--ink);
+  }
 }
 
 .cal-popup-delete {
@@ -335,7 +351,9 @@
   border-color: var(--dusk-red);
 }
 
-.cal-popup-delete:hover {
-  background: var(--dusk-red);
-  color: var(--paper);
+@media (hover: hover) {
+  .cal-popup-delete:hover {
+    background: var(--dusk-red);
+    color: var(--paper);
+  }
 }
