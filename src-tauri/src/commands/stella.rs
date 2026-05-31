@@ -48,8 +48,7 @@ fn get_stellarecord_db_path() -> Option<String> {
 /// `StellaRecord` DB ファイルの実在を確認する (UI のオンボーディング判定で使う)
 #[tauri::command]
 pub fn check_stellarecord_available() -> bool {
-    get_stellarecord_db_path()
-        .is_some_and(|p| std::path::Path::new(&p).exists())
+    get_stellarecord_db_path().is_some_and(|p| std::path::Path::new(&p).exists())
 }
 
 /// `StellaRecord` に Mira を登録する
@@ -67,14 +66,13 @@ pub fn register_to_stellarecord(app: tauri::AppHandle) -> Result<String, String>
     let db_path = get_stellarecord_db_path()
         .ok_or_else(|| "StellaRecord がインストールされていません".to_string())?;
 
-    let conn = Connection::open(&db_path)
-        .map_err(|e| format!("DB を開けませんでした: {e}"))?;
+    let conn = Connection::open(&db_path).map_err(|e| format!("DB を開けませんでした: {e}"))?;
 
     conn.execute_batch(APPS_SCHEMA)
         .map_err(|e| format!("テーブル作成に失敗しました: {e}"))?;
 
-    let exe_path = std::env::current_exe()
-        .map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
+    let exe_path =
+        std::env::current_exe().map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
     let exe_str = exe_path.to_string_lossy().to_string();
 
     let icon_data = load_app_icon(&app);
@@ -120,15 +118,17 @@ pub fn unregister_from_stellarecord() -> Result<String, String> {
         return Ok("DB が存在しないため削除不要です".to_string());
     }
 
-    let conn = Connection::open(&db_path)
-        .map_err(|e| format!("DB を開けませんでした: {e}"))?;
+    let conn = Connection::open(&db_path).map_err(|e| format!("DB を開けませんでした: {e}"))?;
 
     // 自身の exe path を主キーとして削除する（複数インストールに耐性）
-    let exe_path = std::env::current_exe()
-        .map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
+    let exe_path =
+        std::env::current_exe().map_err(|e| format!("実行パスを取得できませんでした: {e}"))?;
     let exe_str = exe_path.to_string_lossy().to_string();
-    conn.execute("DELETE FROM apps WHERE path = ?1", rusqlite::params![exe_str])
-        .map_err(|e| format!("登録解除に失敗しました: {e}"))?;
+    conn.execute(
+        "DELETE FROM apps WHERE path = ?1",
+        rusqlite::params![exe_str],
+    )
+    .map_err(|e| format!("登録解除に失敗しました: {e}"))?;
 
     Ok("StellaRecord から登録解除しました".to_string())
 }

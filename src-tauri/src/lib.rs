@@ -29,8 +29,7 @@ fn resolve_data_root() -> PathBuf {
             return parent.join("Data");
         }
     }
-    let local = std::env::var("LOCALAPPDATA")
-        .unwrap_or_else(|_| r"C:\ProgramData".to_string());
+    let local = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| r"C:\ProgramData".to_string());
     PathBuf::from(local)
         .join("CosmoArtsStore")
         .join("Mira")

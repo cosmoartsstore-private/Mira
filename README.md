@@ -61,6 +61,40 @@ npm run tauri dev
 npm run tauri build
 ```
 
+### Quality Gate
+
+コミット前に以下で lint・テスト・フォーマット・clippy を一括検証できる (CI と同じ内容):
+
+```bash
+npm run verify          # lint → test(JS) → fmt:check → clippy → test(Rust)
+```
+
+個別実行:
+
+```bash
+npm run lint            # ESLint (型情報つき + レイヤ境界チェック)
+npm run test            # Vitest (utils / state の純粋ロジック)
+npm run test:coverage   # カバレッジ付き
+npm run clippy          # cargo clippy --lib -D warnings
+npm run test:rust       # cargo test --lib (logic 層)
+```
+
+`master` への push / PR では [GitHub Actions](.github/workflows/ci.yml) が Rust (Windows) と
+フロントエンド (Ubuntu) を並列にテストする。
+
+## Documentation
+
+| ドキュメント                               | 内容                                         |
+| ------------------------------------------ | -------------------------------------------- |
+| [`docs/spec.md`](docs/spec.md)             | アーキテクチャ・レイヤ構成・IPC コマンド一覧 |
+| [`docs/database.md`](docs/database.md)     | Mira DB スキーマ・マイグレーション方針       |
+| [`docs/tech-stack.md`](docs/tech-stack.md) | 技術スタックと設計判断 (ADR)                 |
+
+## Data & Privacy
+
+すべてのデータはローカルの SQLite に保存され、外部送信・テレメトリは行わない。STELLA RECORD の
+データベースは読み取り専用で開き、Mira が書き換えることはない。
+
 ## Third-Party Assets
 
 | File                                 | Source                                                             | License                       |

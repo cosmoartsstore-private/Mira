@@ -217,9 +217,9 @@ export default tseslint.config(
     },
   },
 
-  // vite.config.ts は tsconfig.json の include 外なので type-aware rules を全部 off
+  // vite.config.ts / vitest.config.ts は tsconfig.json の include 外なので type-aware rules を全部 off
   {
-    files: ["vite.config.ts"],
+    files: ["vite.config.ts", "vitest.config.ts"],
     extends: [tseslint.configs.disableTypeChecked],
   },
 

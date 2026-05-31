@@ -389,10 +389,7 @@ fn query_visits_for_date(
                         // join 日が今日かどうかでフォールバック先を変える
                         let now = chrono::Local::now();
                         let today_str = now.format("%Y-%m-%d").to_string();
-                        let join_date = join_time
-                            .split([' ', 'T'])
-                            .next()
-                            .unwrap_or("");
+                        let join_date = join_time.split([' ', 'T']).next().unwrap_or("");
                         if join_date == today_str {
                             let now_h = now.hour() as f32
                                 + now.minute() as f32 / 60.0
@@ -489,11 +486,7 @@ fn query_photos_for_date(
 // 各訪問ブロックに同席プレイヤー (user_id + name) を紐付ける
 //
 // R2-M-22: 同名別 vrchat_id が混在しても区別できるよう user_id を保持する。
-fn attach_players_to_visits(
-    stella: &rusqlite::Connection,
-    date: &str,
-    visits: &mut [VisitBlock],
-) {
+fn attach_players_to_visits(stella: &rusqlite::Connection, date: &str, visits: &mut [VisitBlock]) {
     let Ok(mut stmt) = stella.prepare(
         "SELECT v.join_time, fu.vrchat_id, fu.account_name
          FROM with_users wu
@@ -534,7 +527,11 @@ fn attach_players_to_visits(
                 });
             }
         }
-        visit.players = if players.is_empty() { None } else { Some(players) };
+        visit.players = if players.is_empty() {
+            None
+        } else {
+            Some(players)
+        };
     }
 }
 
@@ -577,10 +574,7 @@ fn get_setting_u8(conn: &rusqlite::Connection, key: &str) -> Option<u8> {
 // "YYYY-MM-DD HH:MM:SS" / "YYYY-MM-DDTHH:MM:SS" の時刻部を小数 hour に変換 (14:30 -> 14.5)。
 // 区切り (' ' or 'T') 未対応や数値パース失敗時は 0.0 にフォールバック。
 fn parse_hour_fraction(datetime_str: &str) -> f32 {
-    let time_part = datetime_str
-        .split([' ', 'T'])
-        .nth(1)
-        .unwrap_or("00:00:00");
+    let time_part = datetime_str.split([' ', 'T']).nth(1).unwrap_or("00:00:00");
     let parts: Vec<&str> = time_part.split(':').collect();
     let h: f32 = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0.0);
     let m: f32 = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0.0);

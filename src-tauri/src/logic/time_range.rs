@@ -52,3 +52,64 @@ pub fn detect_activity_range(conn: &Connection) -> (u8, u8) {
 
     (start, end)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    const DEFAULT_RANGE: (u8, u8) = (12, 26);
+
+    /// visits テーブルだけを持つ空の in-memory DB を作る。
+    fn empty_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE visits (id INTEGER PRIMARY KEY, join_time TEXT NOT NULL);",
+        )
+        .unwrap();
+        conn
+    }
+
+    #[test]
+    fn falls_back_to_default_when_table_missing() {
+        // visits テーブルが無いと prepare が失敗し、既定の夕方〜深夜帯を返す。
+        let conn = Connection::open_in_memory().unwrap();
+        assert_eq!(detect_activity_range(&conn), DEFAULT_RANGE);
+    }
+
+    #[test]
+    fn falls_back_to_default_when_no_recent_rows() {
+        let conn = empty_db();
+        assert_eq!(detect_activity_range(&conn), DEFAULT_RANGE);
+    }
+
+    #[test]
+    fn ignores_rows_older_than_30_days() {
+        let conn = empty_db();
+        // 1 年前の訪問は集計対象外 → 既定値のまま。
+        conn.execute(
+            "INSERT INTO visits (join_time) VALUES (datetime('now', '-400 days', 'localtime'))",
+            [],
+        )
+        .unwrap();
+        assert_eq!(detect_activity_range(&conn), DEFAULT_RANGE);
+    }
+
+    #[test]
+    fn recent_activity_produces_a_bounded_window() {
+        let conn = empty_db();
+        // 直近の訪問を複数投入する。具体的な時刻は localtime 変換でズレ得るため、
+        // ここでは「返り値が定義域の不変条件を満たす」ことを検証する。
+        for offset in 0..20 {
+            conn.execute(
+                "INSERT INTO visits (join_time) VALUES (datetime('now', ?1, 'localtime'))",
+                [format!("-{offset} hours")],
+            )
+            .unwrap();
+        }
+        let (start, end) = detect_activity_range(&conn);
+        assert!(start <= 23, "start hour must be a valid clock hour");
+        assert!(end <= 30, "end is capped at 30 (24h + late-night margin)");
+        assert!(start < end, "start must precede end");
+    }
+}

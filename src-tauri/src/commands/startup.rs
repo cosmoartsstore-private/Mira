@@ -77,7 +77,9 @@ pub fn get_startup_info(state: State<'_, DbState>) -> Result<StartupInfo, String
 
 /// 起動時/予定変更時に表示する pending 通知を再取得する
 #[tauri::command]
-pub fn get_pending_notifications(state: State<'_, DbState>) -> Result<Vec<ScheduleNotification>, String> {
+pub fn get_pending_notifications(
+    state: State<'_, DbState>,
+) -> Result<Vec<ScheduleNotification>, String> {
     let mira = crate::db::lock_mira(&state)?;
     Ok(query_pending_notifications(&mira))
 }
@@ -119,9 +121,7 @@ pub fn mark_review_seen(state: State<'_, DbState>, key: String) -> Result<(), St
     Ok(())
 }
 
-fn query_pending_notifications(
-    conn: &rusqlite::Connection,
-) -> Vec<ScheduleNotification> {
+fn query_pending_notifications(conn: &rusqlite::Connection) -> Vec<ScheduleNotification> {
     let now = chrono::Local::now();
     let today = now.format("%Y-%m-%d").to_string();
     let week_later = (now + chrono::Duration::days(7))

@@ -15,8 +15,7 @@ use super::migrations;
 pub fn get_db_path() -> PathBuf {
     let dir = get_install_data_dir().unwrap_or_else(|| {
         // インストーラレジストリが無い場合 (開発ビルドや手動配置) のフォールバック
-        let local_app_data =
-            std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".to_string());
+        let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".to_string());
         PathBuf::from(local_app_data)
             .join("CosmoArtsStore")
             .join("Mira")

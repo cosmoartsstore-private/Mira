@@ -105,18 +105,8 @@ pub fn run(conn: &Connection) -> Result<()> {
         "reminded",
         "INTEGER NOT NULL DEFAULT 0",
     )?;
-    add_column_if_missing(
-        conn,
-        "mira_scheduled_events",
-        "recurrence_kind",
-        "TEXT",
-    )?;
-    add_column_if_missing(
-        conn,
-        "mira_scheduled_events",
-        "last_fired_at",
-        "TEXT",
-    )?;
+    add_column_if_missing(conn, "mira_scheduled_events", "recurrence_kind", "TEXT")?;
+    add_column_if_missing(conn, "mira_scheduled_events", "last_fired_at", "TEXT")?;
 
     // 性能向上のための明示 INDEX。SARGable な等価/範囲検索の頻出カラムに付与。
     conn.execute_batch(

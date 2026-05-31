@@ -50,3 +50,76 @@ pub fn generate_color(world_name: &str) -> String {
     let (r, g, b) = PALETTE[idx];
     format!("#{r:02x}{g:02x}{b:02x}")
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// "#rrggbb" を (r, g, b) にパースする (テスト用)。
+    fn parse_hex(color: &str) -> (u8, u8, u8) {
+        assert_eq!(color.len(), 7, "color must be '#rrggbb'");
+        assert!(color.starts_with('#'));
+        let r = u8::from_str_radix(&color[1..3], 16).unwrap();
+        let g = u8::from_str_radix(&color[3..5], 16).unwrap();
+        let b = u8::from_str_radix(&color[5..7], 16).unwrap();
+        (r, g, b)
+    }
+
+    #[test]
+    fn generate_color_is_deterministic() {
+        // 同一入力はプロセスを跨いでも同じ色 (FNV-1a を採用した理由そのもの)。
+        let a = generate_color("wrld_example");
+        let b = generate_color("wrld_example");
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn generate_color_returns_hex_format() {
+        let color = generate_color("any world");
+        assert_eq!(color.len(), 7);
+        assert!(color.starts_with('#'));
+        assert!(color[1..].chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn generate_color_always_within_palette() {
+        // 生成色は必ずパレットのいずれか 1 色になる。
+        for name in [
+            "a",
+            "b",
+            "ぷらねっと",
+            "wrld_1234",
+            "",
+            "very long world name here",
+        ] {
+            let rgb = parse_hex(&generate_color(name));
+            assert!(
+                PALETTE.contains(&rgb),
+                "{name} produced an out-of-palette color"
+            );
+        }
+    }
+
+    #[test]
+    fn different_names_can_map_to_different_colors() {
+        // 全部同じ色に潰れていない (ハッシュが機能している) ことの粗いサニティチェック。
+        let mut seen = std::collections::HashSet::new();
+        for i in 0..100 {
+            seen.insert(generate_color(&format!("world-{i}")));
+        }
+        assert!(
+            seen.len() > 1,
+            "hash should spread across multiple palette colors"
+        );
+    }
+
+    #[test]
+    fn fnv1a_64_matches_known_vector() {
+        // FNV-1a 64-bit の既知ベクタ: 空文字列は offset basis をそのまま返す。
+        assert_eq!(fnv1a_64(""), FNV_OFFSET_BASIS);
+        // "a" = (offset ^ 0x61) * prime
+        let expected = (FNV_OFFSET_BASIS ^ 0x61).wrapping_mul(FNV_PRIME);
+        assert_eq!(fnv1a_64("a"), expected);
+    }
+}

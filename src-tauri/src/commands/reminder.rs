@@ -37,9 +37,7 @@ pub fn check_due_reminders(state: State<'_, DbState>) -> Result<Vec<ReminderEven
 
     // `transaction()` は `&mut self` 必須で借用検査が効くため、後続の prepare/query_map
     // との二重トランザクション混入を機械的に弾ける (`unchecked_transaction()` 不採用)。
-    let tx = mira
-        .transaction()
-        .map_err(|e| e.to_string())?;
+    let tx = mira.transaction().map_err(|e| e.to_string())?;
 
     // dismiss 済 source_ref を一度に取得
     let dismissed: std::collections::HashSet<String> = tx

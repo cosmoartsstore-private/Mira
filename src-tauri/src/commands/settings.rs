@@ -174,11 +174,7 @@ pub fn set_setting(state: State<'_, DbState>, key: String, value: String) -> Res
 /// 一時的に start >= end になり 2 回目のリクエストがエラーになる詰まりが起きる。
 /// このコマンドは両値を 1 トランザクションで書き換え、その内部一貫性を保証する。
 #[tauri::command]
-pub fn set_view_hour_range(
-    state: State<'_, DbState>,
-    start: u32,
-    end: u32,
-) -> Result<(), String> {
+pub fn set_view_hour_range(state: State<'_, DbState>, start: u32, end: u32) -> Result<(), String> {
     if start > 30 || end > 30 {
         return Err(format!(
             "view_hour values must be in 0..=30, got start={start}, end={end}"
@@ -191,9 +187,7 @@ pub fn set_view_hour_range(
     }
 
     let mut mira = crate::db::lock_mira(&state)?;
-    let tx = mira
-        .transaction()
-        .map_err(|e| e.to_string())?;
+    let tx = mira.transaction().map_err(|e| e.to_string())?;
     tx.execute(
         "INSERT OR REPLACE INTO mira_settings (key, value) VALUES ('view_hour_start', ?1)",
         [start.to_string()],

@@ -31,11 +31,7 @@ pub struct MarkerMatch {
 /// 3. 種類 (Person → World の順) でループを回し、同一範囲なら人を優先
 ///
 /// 戻り値はマッチ位置 (start) 昇順でソート済み。
-pub fn find_markers(
-    text: &str,
-    worlds: &[String],
-    people: &[String],
-) -> Vec<MarkerMatch> {
+pub fn find_markers(text: &str, worlds: &[String], people: &[String]) -> Vec<MarkerMatch> {
     let mut candidates: Vec<(&str, MarkerKind)> = Vec::new();
     for p in people {
         candidates.push((p.as_str(), MarkerKind::Person));
@@ -86,4 +82,75 @@ pub fn find_markers(
 // 2 つの byte 範囲 [a.0, a.1) と [b.0, b.1) が交差するかを判定する (半開区間)
 fn overlaps(a: (usize, usize), b: (usize, usize)) -> bool {
     a.0 < b.1 && b.0 < a.1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn s(v: &[&str]) -> Vec<String> {
+        v.iter().map(|x| (*x).to_string()).collect()
+    }
+
+    #[test]
+    fn finds_a_single_world_match() {
+        let m = find_markers("今日は wrld へ行った", &s(&["wrld"]), &[]);
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].text, "wrld");
+        assert!(m[0].kind == MarkerKind::World);
+        // "今日は " = 4 UTF-16 単位ぶん前にある
+        assert_eq!((m[0].start, m[0].end), (4, 8));
+    }
+
+    #[test]
+    fn prefers_the_longest_match() {
+        // "ぷら" と "ぷらねっと" が両方候補でも、長い方だけを採用する。
+        let m = find_markers("ぷらねっと", &s(&["ぷら", "ぷらねっと"]), &[]);
+        assert_eq!(m.len(), 1);
+        assert_eq!(m[0].text, "ぷらねっと");
+        assert_eq!((m[0].start, m[0].end), (0, 5));
+    }
+
+    #[test]
+    fn person_wins_over_world_on_the_same_range() {
+        let m = find_markers("Alice", &s(&["Alice"]), &s(&["Alice"]));
+        assert_eq!(m.len(), 1);
+        assert!(m[0].kind == MarkerKind::Person);
+    }
+
+    #[test]
+    fn offsets_are_utf16_units_not_bytes() {
+        // 先頭の絵文字はサロゲートペアで UTF-16 では 2 単位、UTF-8 では 4 バイト。
+        let m = find_markers("😀a", &[], &s(&["a"]));
+        assert_eq!(m.len(), 1);
+        assert_eq!((m[0].start, m[0].end), (2, 3));
+    }
+
+    #[test]
+    fn matches_are_sorted_by_start() {
+        let m = find_markers("b a", &s(&["a"]), &s(&["b"]));
+        assert_eq!(m.len(), 2);
+        assert_eq!(m[0].start, 0);
+        assert!(m[0].start <= m[1].start);
+    }
+
+    #[test]
+    fn adjacent_non_overlapping_matches_are_both_kept() {
+        let m = find_markers("ab", &[], &s(&["a", "b"]));
+        assert_eq!(m.len(), 2);
+    }
+
+    #[test]
+    fn empty_terms_and_no_candidates_yield_nothing() {
+        assert!(find_markers("hello", &[], &[]).is_empty());
+        assert!(find_markers("x", &s(&[""]), &[]).is_empty());
+    }
+
+    #[test]
+    fn overlaps_treats_ranges_as_half_open() {
+        assert!(overlaps((0, 5), (2, 3)));
+        assert!(overlaps((0, 3), (2, 5)));
+        // 隣接 (端点共有) は交差しない
+        assert!(!overlaps((0, 2), (2, 4)));
+    }
 }

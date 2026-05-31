@@ -29,7 +29,8 @@ pub fn get_snapshot_summary(
     state: State<'_, DbState>,
     key: String,
 ) -> Result<SnapshotSummary, String> {
-    let (period_start, period_end, label) = parse_key(&key).ok_or_else(|| "unsupported key".to_string())?;
+    let (period_start, period_end, label) =
+        parse_key(&key).ok_or_else(|| "unsupported key".to_string())?;
 
     let mira = crate::db::lock_mira(&state)?;
 
@@ -103,7 +104,9 @@ fn parse_key(key: &str) -> Option<(String, String, String)> {
             return None;
         }
         let year: i32 = parts[0].parse().ok()?;
-        let q = parts[1].strip_prefix('Q').or_else(|| parts[1].strip_prefix('q'))?;
+        let q = parts[1]
+            .strip_prefix('Q')
+            .or_else(|| parts[1].strip_prefix('q'))?;
         let qn: u8 = q.parse().ok()?;
         let (start_m, end_m, end_day) = match qn {
             1 => (4, 6, 30),
