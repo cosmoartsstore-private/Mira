@@ -193,3 +193,152 @@ fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool> {
         .unwrap_or(0);
     Ok(count > 0)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    fn fresh() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        conn
+    }
+
+    fn table_exists(conn: &Connection, name: &str) -> bool {
+        conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1)",
+            [name],
+            |r| r.get(0),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn run_creates_all_tables() {
+        let conn = fresh();
+        for t in [
+            "mira_journal_entries",
+            "mira_scheduled_events",
+            "mira_world_colors",
+            "mira_manual_markers",
+            "mira_settings",
+            "mira_dismissed_events",
+        ] {
+            assert!(table_exists(&conn, t), "table {t} should exist");
+        }
+    }
+
+    #[test]
+    fn run_is_idempotent() {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        run(&conn).unwrap();
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name LIKE 'mira_%'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(n, 6);
+    }
+
+    #[test]
+    fn run_creates_indexes() {
+        let conn = fresh();
+        for idx in [
+            "idx_mira_scheduled_events_scheduled_at",
+            "idx_mira_manual_markers_date",
+            "idx_mira_dismissed_events_dismissed_at",
+        ] {
+            let exists: bool = conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='index' AND name=?1)",
+                    [idx],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert!(exists, "index {idx} should exist");
+        }
+    }
+
+    #[test]
+    fn run_seeds_defaults_but_preserves_existing_values() {
+        let conn = fresh();
+        let v: String = conn
+            .query_row(
+                "SELECT value FROM mira_settings WHERE key='font_family'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(v, "Yomogi");
+
+        // INSERT OR IGNORE のため、2 回目の run でもユーザー変更値は温存される。
+        conn.execute(
+            "UPDATE mira_settings SET value='Custom' WHERE key='font_family'",
+            [],
+        )
+        .unwrap();
+        run(&conn).unwrap();
+        let v2: String = conn
+            .query_row(
+                "SELECT value FROM mira_settings WHERE key='font_family'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(v2, "Custom");
+    }
+
+    #[test]
+    fn scheduled_events_has_added_columns() {
+        let conn = fresh();
+        for col in [
+            "remind_minutes_before",
+            "reminded",
+            "recurrence_kind",
+            "last_fired_at",
+        ] {
+            assert!(
+                column_exists(&conn, "mira_scheduled_events", col).unwrap(),
+                "column {col} should exist"
+            );
+        }
+    }
+
+    #[test]
+    fn column_helpers_roundtrip() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute("CREATE TABLE t (a INTEGER)", []).unwrap();
+
+        assert!(!column_exists(&conn, "t", "b").unwrap());
+        add_column_if_missing(&conn, "t", "b", "TEXT").unwrap();
+        assert!(column_exists(&conn, "t", "b").unwrap());
+        // 既存列の再追加は no-op
+        add_column_if_missing(&conn, "t", "b", "TEXT").unwrap();
+
+        drop_column_if_exists(&conn, "t", "b").unwrap();
+        assert!(!column_exists(&conn, "t", "b").unwrap());
+        // 無い列の drop も no-op
+        drop_column_if_exists(&conn, "t", "b").unwrap();
+    }
+
+    #[test]
+    fn migrates_world_colors_primary_key_from_world_id() {
+        let conn = Connection::open_in_memory().unwrap();
+        // 旧スキーマ (world_id 主キー) を用意してから run する。
+        conn.execute_batch(
+            "CREATE TABLE mira_world_colors (
+                world_id  TEXT PRIMARY KEY,
+                color_hex TEXT NOT NULL,
+                is_custom BOOLEAN NOT NULL DEFAULT 0
+            );",
+        )
+        .unwrap();
+        run(&conn).unwrap();
+        assert!(!column_exists(&conn, "mira_world_colors", "world_id").unwrap());
+        assert!(column_exists(&conn, "mira_world_colors", "world_name").unwrap());
+    }
+}

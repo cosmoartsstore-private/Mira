@@ -124,3 +124,40 @@ fn parse_key(key: &str) -> Option<(String, String, String)> {
     }
     None
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_key_annual() {
+        assert_eq!(
+            parse_key("annual_2025"),
+            Some((
+                "2025-01-01".into(),
+                "2025-12-31".into(),
+                "2025年 年間レビュー".into()
+            ))
+        );
+    }
+
+    #[test]
+    fn parse_key_quarters() {
+        let (s, e, _) = parse_key("snapshot_2025-Q1").unwrap();
+        assert_eq!((s.as_str(), e.as_str()), ("2025-04-01", "2025-06-30"));
+        // Q4 は会計四半期で 1-3 月にマップされる
+        let (s4, e4, _) = parse_key("snapshot_2025-Q4").unwrap();
+        assert_eq!((s4.as_str(), e4.as_str()), ("2025-01-01", "2025-03-31"));
+        // 小文字 q も許容
+        assert!(parse_key("snapshot_2025-q2").is_some());
+    }
+
+    #[test]
+    fn parse_key_rejects_invalid() {
+        assert!(parse_key("snapshot_2025-Q5").is_none());
+        assert!(parse_key("snapshot_2025").is_none());
+        assert!(parse_key("annual_abc").is_none());
+        assert!(parse_key("foo").is_none());
+    }
+}

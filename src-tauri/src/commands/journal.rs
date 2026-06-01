@@ -608,3 +608,201 @@ fn format_weekday_jp(wd: chrono::Weekday) -> String {
     }
     .to_string()
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::float_cmp)]
+mod tests {
+    use super::*;
+    use rusqlite::Connection;
+
+    /// 本番スキーマで初期化した Mira DB (色キャッシュ・設定・マーカー用)。
+    fn mira() -> Connection {
+        let c = Connection::open_in_memory().unwrap();
+        crate::db::migrations::run(&c).unwrap();
+        c
+    }
+
+    /// journal が参照する StellaRecord 側の最小スキーマ。
+    fn stella() -> Connection {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(
+            "CREATE TABLE visit_summary (world_name TEXT, join_time TEXT, leave_time TEXT, duration_sec INTEGER);
+             CREATE TABLE visits (id INTEGER PRIMARY KEY, join_time TEXT);
+             CREATE TABLE with_users (visit_id INTEGER, vrchat_id TEXT, is_self INTEGER);
+             CREATE TABLE find_users (vrchat_id TEXT PRIMARY KEY, account_name TEXT);
+             CREATE TABLE screenshots (file_path TEXT, timestamp TEXT);",
+        )
+        .unwrap();
+        c
+    }
+
+    #[test]
+    fn parse_hour_fraction_handles_separators() {
+        assert!((parse_hour_fraction("2026-05-31 14:30:00") - 14.5).abs() < 1e-6);
+        assert!((parse_hour_fraction("2026-05-31T06:00:00") - 6.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn parse_hour_fraction_falls_back_to_zero() {
+        assert_eq!(parse_hour_fraction("2026-05-31"), 0.0);
+        assert_eq!(parse_hour_fraction("garbage"), 0.0);
+    }
+
+    #[test]
+    fn weekday_formatting() {
+        assert_eq!(format_weekday(chrono::Weekday::Mon), "Mon");
+        assert_eq!(format_weekday(chrono::Weekday::Sun), "Sun");
+        assert_eq!(format_weekday_jp(chrono::Weekday::Mon), "月曜日");
+        assert_eq!(format_weekday_jp(chrono::Weekday::Sat), "土曜日");
+    }
+
+    #[test]
+    fn get_setting_u8_only_returns_positive() {
+        let c = mira();
+        // 既定値は空文字 → None
+        assert_eq!(get_setting_u8(&c, "view_hour_start"), None);
+        c.execute(
+            "UPDATE mira_settings SET value='7' WHERE key='view_hour_start'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(get_setting_u8(&c, "view_hour_start"), Some(7));
+        // 0 は「未設定」とみなして None
+        c.execute(
+            "UPDATE mira_settings SET value='0' WHERE key='view_hour_start'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(get_setting_u8(&c, "view_hour_start"), None);
+        assert_eq!(get_setting_u8(&c, "missing_key"), None);
+    }
+
+    #[test]
+    fn world_color_generated_then_cached() {
+        let c = mira();
+        let first = get_or_generate_world_color(&c, "wrld_x");
+        assert_eq!(first, world_color::generate_color("wrld_x"));
+        // 生成色は DB に永続化される
+        let stored: String = c
+            .query_row(
+                "SELECT color_hex FROM mira_world_colors WHERE world_name='wrld_x'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(stored, first);
+        // 2 回目以降はキャッシュ値を返す (生成し直さない)
+        c.execute(
+            "UPDATE mira_world_colors SET color_hex='#ffffff' WHERE world_name='wrld_x'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(get_or_generate_world_color(&c, "wrld_x"), "#ffffff");
+    }
+
+    #[test]
+    fn load_manual_markers_sorted_by_start() {
+        let c = mira();
+        c.execute(
+            "INSERT INTO mira_manual_markers (date,start_pos,end_pos,color) VALUES ('2026-05-31',5,8,'red')",
+            [],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO mira_manual_markers (date,start_pos,end_pos,color) VALUES ('2026-05-31',1,3,'blue')",
+            [],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO mira_manual_markers (date,start_pos,end_pos,color) VALUES ('2026-05-30',0,2,'red')",
+            [],
+        )
+        .unwrap();
+        let m = load_manual_markers(&c, "2026-05-31");
+        assert_eq!(m.len(), 2);
+        assert_eq!((m[0].start, m[0].end, m[0].color.as_str()), (1, 3, "blue"));
+        assert_eq!(m[1].start, 5);
+    }
+
+    #[test]
+    fn query_visits_builds_blocks_with_colors() {
+        let s = stella();
+        let m = mira();
+        s.execute(
+            "INSERT INTO visit_summary VALUES ('A World','2026-05-31 18:00:00','2026-05-31 19:30:00',5400)",
+            [],
+        )
+        .unwrap();
+        s.execute(
+            "INSERT INTO visit_summary VALUES ('B World','2026-05-30 10:00:00',NULL,600)",
+            [],
+        )
+        .unwrap();
+        let v = query_visits_for_date(&s, &m, "2026-05-31").unwrap();
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].world_name, "A World");
+        assert!((v[0].start_hour - 18.0).abs() < 1e-6);
+        assert!((v[0].end_hour - 19.5).abs() < 1e-6);
+        assert_eq!(v[0].duration_min, 90);
+        assert!(v[0].color_hex.starts_with('#'));
+    }
+
+    #[test]
+    fn query_people_ordered_by_co_visit_desc() {
+        let s = stella();
+        s.execute_batch(
+            "INSERT INTO visits (id,join_time) VALUES (1,'2026-05-31 18:00:00'),(2,'2026-05-31 20:00:00');
+             INSERT INTO find_users VALUES ('usr_a','Alice'),('usr_b','Bob');
+             INSERT INTO with_users VALUES (1,'usr_a',0),(2,'usr_a',0),(1,'usr_b',0);",
+        )
+        .unwrap();
+        let p = query_people_for_date(&s, "2026-05-31").unwrap();
+        assert_eq!(p.len(), 2);
+        assert_eq!(p[0].display_name, "Alice");
+        assert_eq!(p[0].co_visit_count, 2);
+        assert_eq!(p[1].display_name, "Bob");
+    }
+
+    #[test]
+    fn query_photos_returns_hour() {
+        let s = stella();
+        s.execute(
+            "INSERT INTO screenshots VALUES ('/p/a.png','2026-05-31 21:30:00')",
+            [],
+        )
+        .unwrap();
+        s.execute(
+            "INSERT INTO screenshots VALUES ('/p/b.png','2026-05-30 09:00:00')",
+            [],
+        )
+        .unwrap();
+        let ph = query_photos_for_date(&s, "2026-05-31").unwrap();
+        assert_eq!(ph.len(), 1);
+        assert_eq!(ph[0].file_path, "/p/a.png");
+        assert!((ph[0].hour - 21.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn attach_players_filters_by_time_window() {
+        let s = stella();
+        s.execute_batch(
+            "INSERT INTO visits (id,join_time) VALUES (1,'2026-05-31 18:30:00'),(2,'2026-05-31 22:00:00');
+             INSERT INTO find_users VALUES ('usr_a','Alice'),('usr_b','Bob');
+             INSERT INTO with_users VALUES (1,'usr_a',0),(1,'usr_a',0),(2,'usr_b',0);",
+        )
+        .unwrap();
+        let mut visits = vec![VisitBlock {
+            world_name: "A".into(),
+            color_hex: "#000000".into(),
+            start_hour: 18.0,
+            end_hour: 20.0,
+            duration_min: 120,
+            players: None,
+        }];
+        attach_players_to_visits(&s, "2026-05-31", &mut visits);
+        let players = visits[0].players.as_ref().unwrap();
+        // Bob は時間枠外、Alice は重複排除されて 1 人
+        assert_eq!(players.len(), 1);
+        assert_eq!(players[0].name, "Alice");
+    }
+}

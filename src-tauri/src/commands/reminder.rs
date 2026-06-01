@@ -220,3 +220,68 @@ fn next_fire_today(
     let naive = date.and_hms_opt(h, m, s)?;
     chrono::Local.from_local_datetime(&naive).single()
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+    use rusqlite::Connection;
+
+    fn mira() -> Connection {
+        let c = Connection::open_in_memory().unwrap();
+        crate::db::migrations::run(&c).unwrap();
+        c
+    }
+
+    fn local(y: i32, mo: u32, d: u32, h: u32, mi: u32) -> chrono::DateTime<chrono::Local> {
+        chrono::Local
+            .with_ymd_and_hms(y, mo, d, h, mi, 0)
+            .single()
+            .unwrap()
+    }
+
+    #[test]
+    fn next_fire_today_same_weekday() {
+        // now = 2026-05-25(月)。過去の月曜 20:00 予定は今日 20:00 に発火。
+        let now = local(2026, 5, 25, 10, 0);
+        let f = next_fire_today("2026-05-18 20:00:00", &now).unwrap();
+        assert_eq!(
+            f.format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2026-05-25 20:00:00"
+        );
+    }
+
+    #[test]
+    fn next_fire_today_rejects_other_weekday_and_future_base() {
+        let now = local(2026, 5, 25, 10, 0);
+        // 火曜の予定は今日 (月) は対象外
+        assert!(next_fire_today("2026-05-19 20:00:00", &now).is_none());
+        // 未来日が初回の予定は今日が同曜日でも発火しない
+        assert!(next_fire_today("2026-06-01 20:00:00", &now).is_none());
+    }
+
+    #[test]
+    fn collect_recurring_due_window_and_fired_skip() {
+        let c = mira();
+        c.execute(
+            "INSERT INTO mira_scheduled_events
+                (event_type,title,scheduled_at,source,notify_on_launch,is_recurring,created_at,remind_minutes_before,recurrence_kind)
+             VALUES ('reservation','Weekly','2026-05-18 20:00:00','user',1,1,'2026-05-18 20:00:00',10,'weekly')",
+            [],
+        )
+        .unwrap();
+        // 月曜 19:55 (発火 5 分前) → remind_minutes_before=10 の窓に入る
+        let now = local(2026, 5, 25, 19, 55);
+        let due = collect_recurring_due(&c, &now, "2026-05-25");
+        assert_eq!(due.len(), 1);
+        assert_eq!(due[0].title, "Weekly");
+        // 今日発火済みにすると除外される
+        c.execute(
+            "UPDATE mira_scheduled_events SET last_fired_at='2026-05-25'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(collect_recurring_due(&c, &now, "2026-05-25").len(), 0);
+    }
+}

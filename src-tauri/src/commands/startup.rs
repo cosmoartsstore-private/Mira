@@ -297,3 +297,43 @@ fn check_pending_review(conn: &rusqlite::Connection) -> Option<String> {
 
     None
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn local(y: i32, mo: u32, d: u32, h: u32, mi: u32) -> chrono::DateTime<chrono::Local> {
+        chrono::Local
+            .with_ymd_and_hms(y, mo, d, h, mi, 0)
+            .single()
+            .unwrap()
+    }
+
+    #[test]
+    fn weekly_returns_same_weekday_this_week() {
+        // now = 2026-05-25(月) 10:00。過去の月曜 20:00 予定は今週の月曜 20:00 に発火。
+        let now = local(2026, 5, 25, 10, 0);
+        let next = next_weekly_within_week("2026-05-18 20:00:00", &now).unwrap();
+        assert_eq!(
+            next.format("%Y-%m-%d %H:%M:%S").to_string(),
+            "2026-05-25 20:00:00"
+        );
+    }
+
+    #[test]
+    fn weekly_skips_future_base_date() {
+        // base_date が未来 (初回未到来) なら今週内の同曜日に前倒し発火しない。
+        let now = local(2026, 5, 25, 10, 0);
+        assert!(next_weekly_within_week("2026-06-01 20:00:00", &now).is_none());
+    }
+
+    #[test]
+    fn weekly_finds_other_weekday_within_7_days() {
+        // 火曜の予定は今週の火曜 (2026-05-26) に発火。
+        let now = local(2026, 5, 25, 10, 0);
+        let next = next_weekly_within_week("2026-05-19 09:00:00", &now).unwrap();
+        assert_eq!(next.format("%Y-%m-%d").to_string(), "2026-05-26");
+    }
+}
