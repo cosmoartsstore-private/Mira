@@ -1,0 +1,16 @@
+     Running BeforeDevCommand (`npm run dev`)
+     Running DevCommand (`cargo  run --no-default-features --color always --`)
+        Info Watching F:\planetes-atelier\software\mira\src-tauri for changes...
+[1m[93mwarning[0m[1m[97m: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\F:\planetes-atelier\software\mira\src-tauri\target\debug\incremental\build_script_build-0e7vc5pj4gniv\s-him3uikz1p-1r0u85o-working`[0m
+
+[1m[93mwarning[0m: `mira` (build script) generated 1 warning
+[1m[93mwarning[0m[1m[97m: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\F:\planetes-atelier\software\mira\src-tauri\target\debug\incremental\mira_lib-2pnaxxaz7o0xi\s-hj95fka512-0xoo3r7-working`[0m
+
+[1m[93mwarning[0m: `mira` (lib) generated 1 warning
+[1m[93mwarning[0m[1m[97m: hard linking files in the incremental compilation cache failed. copying files instead. consider moving the cache directory to a file system which supports hard linking in session dir `\\?\F:\planetes-atelier\software\mira\src-tauri\target\debug\incremental\mira-1hrbs2a3hfkp6\s-hj95gq501w-1q7yhb5-working`[0m
+
+[1m[93mwarning[0m: `mira` (bin "mira") generated 1 warning
+[1m[92m    Finished[0m ]8;;https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles\`dev` profile [unoptimized + debuginfo]]8;;\ target(s) in 15.15s
+[1m[92m     Running[0m `target\debug\mira.exe`
+[WARN][mira_db] InstallLocation 未取得; LOCALAPPDATA フォールバックを使用 [C:\Users\kaimu\AppData\Local\CosmoArtsStore\Mira\Data\db]
+[INFO][app] startup_completed
