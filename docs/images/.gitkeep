@@ -1,0 +1,12 @@
+# スクリーンショット配置先
+
+README.md の Screenshots セクションで参照する画像をこのディレクトリに配置する。
+
+想定ファイル名:
+
+- weekly.png — 週間タイムライン
+- day-focus.png — 日次フォーカスビュー
+- calendar.png — 月別カレンダー
+- snapshot.png — Mira スナップショット (季節サマリー)
+
+公開時は画像追加後、README.md の Screenshots セクションのコメントアウトを解除する。

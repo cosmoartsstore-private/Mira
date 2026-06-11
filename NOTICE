@@ -1,0 +1,172 @@
+Mira
+Copyright (c) 2025-2026 CosmoArtsStore. All rights reserved.
+
+This product includes software developed by third parties. The following
+notices are provided in compliance with the terms of those third-party
+licenses. The complete license texts are available from the listed
+repositories or the upstream source distributions.
+
+================================================================================
+1. Rust Dependencies (Cargo.toml direct dependencies)
+================================================================================
+
+The full transitive dependency tree contains 400+ crates. The following are
+the direct dependencies declared in `src-tauri/Cargo.toml`. Run
+`cargo license` in `src-tauri/` for the complete enumerated list.
+
+Format: <crate> <version> — <license> — <repository>
+
+tauri 2.11.0 — Apache-2.0 OR MIT — https://github.com/tauri-apps/tauri
+tauri-build 2.6.0 — Apache-2.0 OR MIT — https://github.com/tauri-apps/tauri
+tauri-plugin-single-instance 2.4.2 — Apache-2.0 OR MIT — https://github.com/tauri-apps/plugins-workspace
+serde 1.0.228 — Apache-2.0 OR MIT — https://github.com/serde-rs/serde
+rusqlite 0.38.0 — MIT — https://github.com/rusqlite/rusqlite
+winreg 0.52.0 — MIT — https://github.com/gentoo90/winreg-rs
+chrono 0.4.44 — Apache-2.0 OR MIT — https://github.com/chronotope/chrono
+
+================================================================================
+2. Rust Transitive Dependency License Summary
+================================================================================
+
+The dependency graph (as enumerated by `cargo license` against the workspace
+`Cargo.lock`) consists of approximately:
+
+  Apache-2.0 OR MIT                                  : 307 crates
+  MIT                                                : 118 crates
+  Apache-2.0 OR MIT OR Zlib                          :  18 crates
+  Unicode-3.0                                        :  18 crates
+  Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT:  15 crates
+  MIT OR Unlicense                                   :   6 crates
+  MPL-2.0                                            :   5 crates (option-ext,
+                                                       cssparser, cssparser-macros,
+                                                       dtoa-short, selectors)
+  Apache-2.0 OR MIT OR Zlib (continued)              :  -
+  Apache-2.0                                         :   2 crates
+  BSD-3-Clause                                       :   2 crates
+  BSD-3-Clause AND MIT                               :   1 crate (brotli)
+  BSD-3-Clause OR MIT                                :   1 crate (brotli-decompressor)
+  Apache-2.0 AND MIT                                 :   1 crate (dpi)
+  Apache-2.0 OR BSD-3-Clause OR MIT                  :   2 crates (num_enum)
+  Apache-2.0 OR CC0-1.0 OR MIT-0                     :   1 crate (dunce)
+  Apache-2.0 OR LGPL-2.1-or-later OR MIT             :   2 crates (r-efi)
+  Apache-2.0 WITH LLVM-exception                     :   1 crate (target-lexicon)
+  ISC                                                :   1 crate (libloading)
+  Zlib                                               :   2 crates (foldhash)
+  (Apache-2.0 OR MIT) AND Unicode-3.0                :   1 crate (unicode-ident)
+  0BSD OR Apache-2.0 OR MIT                          :   1 crate (adler2)
+
+All Apache-2.0 / MIT / BSD / ISC / Zlib / 0BSD / Unlicense / MPL-2.0 /
+Unicode-3.0 licenses are compatible with redistribution under the conditions
+that the original copyright notice, license text, and (for MPL-2.0) source
+availability for modified files are preserved.
+
+================================================================================
+3. Node Dependencies (package.json production dependencies)
+================================================================================
+
+@tauri-apps/api 2.11.0 — Apache-2.0 OR MIT — https://github.com/tauri-apps/tauri
+
+Dev-only dependencies (TypeScript, Vite, ESLint, Prettier, Stylelint,
+cssnano / cssnano-preset-lite / postcss-colormin, etc.) are not
+redistributed as library code with the bundled application. They transform
+or lint source files at build time; only the transformed output ships in
+the installer. Full list and exact versions are declared in `package.json`.
+
+Build-time transformation tooling (informational):
+
+  cssnano                 — MIT — https://github.com/cssnano/cssnano
+  cssnano-preset-lite     — MIT — https://github.com/cssnano/cssnano
+  postcss-colormin        — MIT — https://github.com/cssnano/cssnano
+  vite                    — MIT — https://github.com/vitejs/vite
+  prettier                — MIT — https://github.com/prettier/prettier
+  eslint                  — MIT — https://github.com/eslint/eslint
+  typescript-eslint       — MIT — https://github.com/typescript-eslint/typescript-eslint
+  eslint-plugin-unicorn   — MIT — https://github.com/sindresorhus/eslint-plugin-unicorn
+  stylelint               — MIT — https://github.com/stylelint/stylelint
+  stylelint-config-standard — MIT — https://github.com/stylelint/stylelint-config-standard
+  typescript              — Apache-2.0 — https://github.com/microsoft/TypeScript
+
+================================================================================
+4. Web Fonts (loaded at runtime from Google Fonts CDN)
+================================================================================
+
+The following web fonts are loaded from Google Fonts via a `<link>` element
+in the application HTML. They are not bundled with the redistribution.
+
+  Allura              — SIL Open Font License 1.1
+  Cormorant Garamond  — SIL Open Font License 1.1
+  Noto Sans JP        — SIL Open Font License 1.1
+  Yomogi              — SIL Open Font License 1.1
+  Yusei Magic         — SIL Open Font License 1.1
+  Kiwi Maru           — SIL Open Font License 1.1
+  Hachi Maru Pop      — SIL Open Font License 1.1
+
+  Full license text: https://scripts.sil.org/OFL
+
+================================================================================
+5. Bundled Texture Assets
+================================================================================
+
+  src/assets/textures/wood-wall.jpg
+    Source: ambientCG Wood026 (https://ambientcg.com/view?id=Wood026)
+    License: CC0 1.0 Public Domain Dedication
+    https://creativecommons.org/publicdomain/zero/1.0/
+
+  src/assets/textures/cork-board.jpg
+    Source: ambientCG Cork001 (https://ambientcg.com/view?id=Cork001)
+    License: CC0 1.0 Public Domain Dedication
+    https://creativecommons.org/publicdomain/zero/1.0/
+
+================================================================================
+6. Bundled Audio Assets
+================================================================================
+
+  src/assets/sounds/notify-chime.mp3
+    Source: くらげ工匠 フレーズ032 (http://www.kurage-kosho.info/system.html)
+    License: Free for use (commercial use permitted, credit optional)
+
+  src/assets/voices/*.wav (54 files)
+    Synthesized with VOICEVOX (https://voicevox.hiroshiba.jp/)
+    Engine credit: ヒホ
+    See VOICEVOX terms: https://voicevox.hiroshiba.jp/term
+    Per-character usage terms:
+
+      四国めたん / ずんだもん / 東北ずん子 (SSS合同会社)
+        https://zunko.jp/con_ongen_kiyaku.html
+      春日部つむぎ (春日部つむぎ公式)
+        https://tsumugi-official.studio.site/rule
+      櫻歌ミコ (櫻歌ミコ公式)
+        https://miko35.info/voicevox
+      WhiteCUL (WhiteCUL 公式)
+        https://www.whitecul.com/guideline
+      Voidoll (NHN PlayArt)
+        https://app.nhn-playart.com/compass/
+      白上虎太郎 (VirVox Project / CV: ガロ)
+        https://www.virvoxproject.com/voicevoxshiraga
+      離途 (LitMUS9)
+        https://litmus9.com/litho
+
+================================================================================
+7. Other Bundled Assets
+================================================================================
+
+  src/assets/avatar.jpg
+    Profile image. Copyright held by the author. All rights reserved.
+    Used with permission of the rights holder.
+
+================================================================================
+8. Notes
+================================================================================
+
+For the complete enumerated list of Rust dependencies with their exact
+version numbers, authors, and license expressions, run the following from
+the project root:
+
+  cd src-tauri && cargo license
+
+For the complete list of Node dependencies, run:
+
+  npm ls --all --json --omit=dev
+
+This NOTICE file is provided for redistribution compliance. It does not
+modify, supplement, or replace the terms of any of the listed licenses.
