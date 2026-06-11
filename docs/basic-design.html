@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mira Basic Design</title>
+  <style>
+    :root { color-scheme: light; --bg: #f6f7f9; --paper: #fff; --ink: #1f2933; --muted: #64748b; --line: #d7dde5; --accent: #2563eb; --soft: #e8f0ff; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Segoe UI", "Noto Sans JP", sans-serif; line-height: 1.65; }
+    header { padding: 32px 40px 20px; background: var(--paper); border-bottom: 1px solid var(--line); }
+    main { max-width: 1120px; margin: 0 auto; padding: 28px 24px 48px; }
+    h1, h2, h3 { line-height: 1.25; margin: 0; }
+    h1 { font-size: 30px; }
+    h2 { margin-top: 34px; padding-bottom: 8px; border-bottom: 2px solid var(--line); font-size: 22px; }
+    h3 { margin-top: 24px; font-size: 18px; }
+    table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; background: var(--paper); }
+    th, td { border: 1px solid var(--line); padding: 9px 10px; vertical-align: top; }
+    th { background: #eef2f7; text-align: left; }
+    .meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+    .meta div, .screen { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 14px; }
+    .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    .value { font-weight: 600; }
+    .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .wireframe { margin: 12px 0 0; padding: 12px; background: #0f172a; color: #dbeafe; border-radius: 6px; overflow-x: auto; font-family: Consolas, "Courier New", monospace; font-size: 12px; line-height: 1.35; }
+    .note { border-left: 4px solid var(--accent); background: var(--soft); padding: 10px 12px; }
+    @media (max-width: 820px) { header { padding: 24px 20px 16px; } main { padding: 20px 14px 36px; } .meta, .layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Mira 基本設計書</h1>
+    <p>画面構成、遷移、主要レイアウト、状態表示を外部設計レベルで定義する。</p>
+    <div class="meta">
+      <div><div class="label">Document</div><div class="value">docs/basic-design.html</div></div>
+      <div><div class="label">Target</div><div class="value">Mira</div></div>
+      <div><div class="label">Platform</div><div class="value">Windows / Tauri v2</div></div>
+      <div><div class="label">Status</div><div class="value">Public reference</div></div>
+    </div>
+  </header>
+  <main>
+    <section>
+      <h2>1. Screen List</h2>
+      <table>
+        <thead><tr><th>Screen</th><th>Purpose</th><th>Primary Operations</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td>Home</td><td>週間タイムラインと日次フォーカスを表示する。</td><td>週移動、日選択、メモ編集、写真確認</td><td>src/pages/home</td></tr>
+          <tr><td>Calendar</td><td>月単位で活動日、祝日、予定を表示する。</td><td>月移動、予定登録、予定編集、予定削除</td><td>src/pages/calendar</td></tr>
+          <tr><td>Settings</td><td>表示、フォント、通知、StellaRecord 連携を設定する。</td><td>設定保存、DB パス指定、登録確認</td><td>src/pages/settings</td></tr>
+          <tr><td>Snapshot Modal</td><td>四半期・年間レビューを表示する。</td><td>開封、既読化、閉じる</td><td>snapshot services</td></tr>
+          <tr><td>Photo Lightbox</td><td>日次写真を拡大表示する。</td><td>前後移動、閉じる</td><td>src/pages/home</td></tr>
+          <tr><td>Debug</td><td>開発用状態確認を行う。</td><td>DEV ビルドのみ表示</td><td>src/pages/debug</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>2. Navigation Structure</h2>
+      <div class="note">上部ナビゲーションで Home / Calendar / Settings を切り替える。Snapshot と Lightbox は現在画面の上にモーダル表示する。</div>
+      <pre class="wireframe">App Shell
+  ├─ Header navigation
+  │   ├─ Home
+  │   ├─ Calendar
+  │   └─ Settings
+  ├─ Main page
+  │   ├─ Weekly timeline
+  │   ├─ Day focus
+  │   └─ Calendar month view
+  └─ Global overlays
+      ├─ Snapshot modal
+      ├─ Reminder card
+      └─ Photo lightbox</pre>
+    </section>
+
+    <section>
+      <h2>3. Common Layout Rules</h2>
+      <table>
+        <thead><tr><th>Area</th><th>Definition</th></tr></thead>
+        <tbody>
+          <tr><td>Header</td><td>アプリ名、ページ切替、現在日付、設定入口を配置する。</td></tr>
+          <tr><td>Timeline lane</td><td>7 日分の訪問ブロック、予定ピン、時間軸を同じ座標系で描画する。</td></tr>
+          <tr><td>Day focus</td><td>選択日の訪問、同席ユーザー、写真、メモを縦方向に配置する。</td></tr>
+          <tr><td>Modal</td><td>Snapshot、Lightbox、通知詳細など一時表示の情報を表示する。</td></tr>
+          <tr><td>Feedback</td><td>保存、通知、DB 接続、StellaRecord 未検出はトーストまたは画面内状態で表示する。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>4. Screen Layouts</h2>
+      <div class="layout">
+        <article class="screen">
+          <h3>Home: Weekly Timeline</h3>
+          <p>週単位の訪問履歴と予定ピンを表示する。</p>
+          <pre class="wireframe">┌ Header: week nav / today / settings ┐
+├ Reminder cards                       ┤
+├ Timeline controls: zoom / range      ┤
+├──────────────────────────────────────┤
+│ Mon │ Tue │ Wed │ Thu │ Fri │ Sat │ Sun
+│ visit blocks + event pins             │
+└ Selected day summary                  ┘</pre>
+        </article>
+        <article class="screen">
+          <h3>Home: Day Focus</h3>
+          <p>選択日の訪問、同席ユーザー、写真、メモをまとめる。</p>
+          <pre class="wireframe">┌ Day focus header: date / world count ┐
+├ Visit blocks                         ┤
+├ Co-present users / memokitto         ┤
+├ Cork board photos                    ┤
+├ Memo editor with markers             ┤
+└ Save state / character count         ┘</pre>
+        </article>
+        <article class="screen">
+          <h3>Calendar</h3>
+          <p>月間の活動日、祝日、予定を一覧する。</p>
+          <pre class="wireframe">┌ Calendar header: month nav / add event ┐
+├ Weekday row                             ┤
+├ Month grid                              │
+│ day: visits / holidays / events         │
+└ Event editor panel                      ┘</pre>
+        </article>
+        <article class="screen">
+          <h3>Settings</h3>
+          <p>表示・通知・DB 連携の設定を管理する。</p>
+          <pre class="wireframe">┌ Settings header ┐
+├ StellaRecord connection                ┤
+├ Font and memo settings                  ┤
+├ Transition / snapshot / reminder        ┤
+└ Save status / error                     ┘</pre>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>5. Modal and Dialog Layouts</h2>
+      <table>
+        <thead><tr><th>Modal</th><th>Trigger</th><th>Primary Content</th><th>Close Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Snapshot Modal</td><td>未読レビュー検出</td><td>四半期/年間サマリー、開封演出</td><td>既読化または閉じる</td></tr>
+          <tr><td>Photo Lightbox</td><td>写真クリック</td><td>画像、撮影時刻、ワールド名</td><td>閉じるまたは Esc</td></tr>
+          <tr><td>Event Editor</td><td>予定追加/編集</td><td>タイトル、日時、繰り返し、通知</td><td>保存またはキャンセル</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>6. State and Feedback</h2>
+      <table>
+        <thead><tr><th>State</th><th>Display</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td>StellaRecord disconnected</td><td>空状態、再接続ボタン</td><td>get_startup_info</td></tr>
+          <tr><td>Memo saving</td><td>保存中/保存済み/失敗</td><td>save_day_memo</td></tr>
+          <tr><td>Reminder firing</td><td>カード、トースト、音声/チャイム</td><td>reminder polling</td></tr>
+          <tr><td>Snapshot pending</td><td>未読レビュー通知</td><td>get_pending_review</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</body>
+</html>

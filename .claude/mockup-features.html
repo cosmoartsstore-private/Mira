@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mira — 新機能モックアップ v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Italianno&family=Kiwi+Maru:wght@400;500&family=Noto+Sans+JP:wght@400;500&family=Yomogi&display=swap" rel="stylesheet" />
+  <style>
+    /* ===== Design Tokens ===== */
+    :root {
+      --paper: #f4ede0; --paper-warm: #ede2cf; --paper-deep: #e0d2b8; --card: #faf4e8;
+      --ink: #2a2018; --ink-soft: #4a3d2e; --ink-faint: #7a6a55; --ink-mute: #a89880;
+      --dusk-orange: #c8633a; --dusk-red: #8e3528; --dusk-gold: #d49a4a;
+      --dusk-pink: #d28aa6; --night-indigo: #2d3a5c; --night-deep: #1a2138; --rule: #c9b896;
+      --ui-font: "Noto Sans JP","Yu Gothic UI",sans-serif;
+      --content-font: "Yomogi","Yu Mincho",serif;
+      --memo-font: "Yomogi","Yu Mincho",serif;
+      --heading-font: "Cormorant Garamond","Times New Roman",serif;
+      --logo-font: "Italianno",cursive;
+      --settings-font: "Kiwi Maru","Yu Gothic UI",sans-serif;
+      --nb-line-height: 38px; --nb-margin-left: 48px;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{background:var(--paper);font-family:var(--ui-font);color:var(--ink);}
+
+    /* ===== Mockup Nav ===== */
+    .mockup-bar{position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--night-deep);height:38px;display:flex;align-items:center;padding:0 12px;gap:2px;}
+    .mockup-label{font-family:var(--heading-font);font-style:italic;font-size:13px;color:var(--dusk-gold);margin-right:16px;white-space:nowrap;}
+    .mockup-tab{padding:0 14px;height:38px;display:flex;align-items:center;font-family:var(--heading-font);font-style:italic;font-size:12px;color:rgba(244,237,224,.5);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s;}
+    .mockup-tab:hover{color:var(--paper);}
+    .mockup-tab.active{color:var(--dusk-gold);border-bottom-color:var(--dusk-gold);}
+
+    /* ===== App Shell ===== */
+    .app-shell{padding-top:38px;height:calc(100vh - 38px);display:flex;flex-direction:column;}
+    .screen{display:none;flex:1;flex-direction:column;overflow:hidden;}
+    .screen.active{display:flex;}
+
+    /* ===== Navbar ===== */
+    .navbar{background:rgba(244,237,224,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--paper-deep);display:flex;align-items:center;justify-content:space-between;padding:12px 28px;flex-shrink:0;}
+    .navbar-logo{font-family:var(--logo-font);font-size:34px;color:var(--ink);line-height:1;}
+    .navbar-logo::before{content:"✦";color:var(--dusk-orange);margin-right:8px;font-size:12px;vertical-align:6px;}
+    .navbar-tabs{display:flex;gap:6px;}
+    .navbar-tab{padding:7px 14px;font-size:12.5px;border:1px solid var(--rule);background:transparent;color:var(--ink-soft);cursor:pointer;border-radius:2px;font-family:inherit;letter-spacing:.05em;transition:all .2s;}
+    .navbar-tab:hover{border-color:var(--dusk-orange);color:var(--dusk-red);}
+    .navbar-tab.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+
+    /* ===== Home Page ===== */
+    .home-page{display:flex;flex-direction:column;flex:1;min-height:0;padding:20px 28px 0;overflow:hidden;}
+    .page-head{display:flex;align-items:baseline;gap:16px;border-bottom:1px solid var(--rule);padding-bottom:12px;margin-bottom:16px;position:relative;flex-shrink:0;}
+    .page-head::after{content:"";position:absolute;bottom:-2px;left:0;width:60px;height:1px;background:var(--dusk-orange);}
+    .page-head h1{font-family:var(--heading-font);font-style:italic;font-weight:500;font-size:32px;color:var(--ink);line-height:1;}
+    .page-head .sub{font-family:var(--heading-font);font-style:italic;font-size:13.5px;color:var(--ink-faint);letter-spacing:.18em;}
+
+    /* Home mode tabs (NEW) */
+    .home-mode-tabs{display:flex;gap:0;margin-bottom:14px;border-bottom:1px solid var(--rule);flex-shrink:0;}
+    .home-mode-tab{padding:7px 20px;font-size:13px;background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;color:var(--ink-faint);cursor:pointer;font-family:var(--ui-font);letter-spacing:.03em;transition:color .2s,border-bottom-color .2s;}
+    .home-mode-tab:hover{color:var(--ink-soft);}
+    .home-mode-tab.active{color:var(--dusk-orange);border-bottom-color:var(--dusk-orange);}
+
+    /* week-nav */
+    .week-nav{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px;flex-shrink:0;}
+    .week-label{font-family:var(--heading-font);font-style:italic;font-size:17px;color:var(--ink-soft);letter-spacing:.05em;min-width:200px;text-align:center;}
+    .cal-arrow{background:transparent;border:1px solid var(--rule);color:var(--ink-soft);cursor:pointer;font-size:20px;padding:4px 12px;border-radius:2px;}
+    .today-btn{padding:6px 16px;font-size:14px;border:1px solid var(--rule);background:transparent;color:var(--ink-soft);cursor:pointer;border-radius:2px;font-family:inherit;letter-spacing:.05em;}
+
+    /* home-layout */
+    .home-layout{display:flex;gap:16px;align-items:stretch;flex:1;min-height:0;}
+    .lane-wrap{background:var(--card);border:1px solid var(--paper-deep);flex:1 1 auto;min-width:0;display:flex;flex-direction:column;overflow:hidden;}
+    .lane-header{display:grid;grid-template-columns:50px repeat(7,1fr);background:var(--paper-warm);border-bottom:1px solid var(--paper-deep);flex-shrink:0;}
+    .lane-corner{border-right:1px solid var(--paper-deep);}
+    .day-head{padding:8px 4px;text-align:center;border-left:1px dotted rgba(201,184,150,.5);cursor:pointer;overflow:hidden;}
+    .day-head .wd{font-family:var(--heading-font);font-style:italic;font-size:11px;color:var(--ink-faint);letter-spacing:.1em;text-transform:uppercase;}
+    .day-head .num{font-family:var(--heading-font);font-size:22px;font-weight:500;color:var(--ink);}
+    .day-head.inactive .num{color:var(--ink-mute);}
+    .day-head.today{background:rgba(212,154,74,.08);}
+    .day-head.today .num{color:var(--dusk-orange);}
+    .lane-body{display:grid;grid-template-columns:50px repeat(7,1fr);position:relative;overflow-y:auto;flex:1;}
+    .time-axis{border-right:1px solid var(--paper-deep);position:relative;height:320px;background:var(--paper-warm);}
+    .hour-mark{position:absolute;right:4px;font-family:var(--heading-font);font-style:italic;font-size:10px;color:var(--ink-mute);transform:translateY(-50%);}
+    .day-lane{border-left:1px dotted rgba(201,184,150,.5);position:relative;height:320px;}
+    .visit-block{position:absolute;left:4px;right:4px;border-left:3px solid;border-radius:2px;overflow:hidden;cursor:pointer;padding:2px 6px;}
+    .v-name{font-family:var(--content-font);font-size:10px;color:var(--ink);display:block;line-height:1.3;}
+    .v-time{font-family:var(--heading-font);font-style:italic;font-size:9px;color:var(--ink-faint);display:block;}
+    .lane-foot{font-family:var(--heading-font);font-style:italic;font-size:11px;color:var(--ink-mute);text-align:center;padding:6px;border-top:1px solid var(--paper-deep);flex-shrink:0;}
+
+    /* memo-paper (focus mode) */
+    .memo-paper{flex:0 0 calc(85% - 16px);max-width:calc(85% - 16px);display:flex;flex-direction:column;min-height:0;}
+    .memo-inner{background:linear-gradient(180deg,rgba(42,32,24,.25) 0%,rgba(42,32,24,.08) 8%,transparent 20%),linear-gradient(135deg,#5a3a22 0%,#3d2511 30%,#6b4328 60%,#4a2d18 100%);border:1px solid rgba(74,61,46,.4);box-shadow:inset 0 2px 8px rgba(0,0,0,.15);padding:32px 36px;position:relative;flex:1;min-height:0;overflow-y:auto;}
+    .memo-inner::before{content:"";position:absolute;inset:0;background:rgba(42,32,24,.12);pointer-events:none;z-index:0;}
+    .memo-date{font-family:var(--heading-font);font-style:italic;font-size:15px;letter-spacing:.25em;text-transform:uppercase;color:rgba(244,237,224,.85);margin-bottom:12px;text-shadow:0 1px 2px rgba(0,0,0,.3);position:relative;z-index:1;}
+    .memo-note-card{z-index:1;background:repeating-linear-gradient(to bottom,transparent,transparent calc(var(--nb-line-height) - 1px),rgba(140,170,210,.30) calc(var(--nb-line-height) - 1px),rgba(140,170,210,.30) var(--nb-line-height)),linear-gradient(135deg,#fefcf6 0%,#faf4e6 100%);border:1px solid rgba(160,140,110,.5);box-shadow:3px 4px 10px rgba(0,0,0,.18);padding:20px 28px 20px var(--nb-margin-left);position:relative;margin-bottom:16px;}
+    .memo-note-card::before{content:"";position:absolute;top:0;bottom:0;left:calc(var(--nb-margin-left) - 12px);width:2px;background:rgba(220,80,80,.4);z-index:1;}
+    .memo-textarea-sim{font-family:var(--memo-font);font-size:18px;line-height:var(--nb-line-height);color:var(--ink);height:200px;overflow:hidden;padding:7px 0;white-space:pre-wrap;word-wrap:break-word;}
+    .memo-counter{font-family:var(--heading-font);font-style:italic;font-size:12px;color:var(--ink-mute);text-align:right;margin-top:2px;}
+    .memo-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;padding:14px;background:rgba(250,244,232,.92);border:1px solid rgba(201,184,150,.5);position:relative;z-index:1;}
+    .memo-stat{text-align:center;}
+    .memo-stat .lbl{font-family:var(--heading-font);font-style:italic;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:2px;}
+    .memo-stat .val{font-family:var(--content-font);font-size:16px;color:var(--ink);}
+    .memo-stat .val .num{font-family:var(--heading-font);font-style:italic;font-size:19px;color:var(--dusk-red);font-weight:500;margin-right:2px;}
+
+    /* Mood picker (NEW) */
+    .memo-mood-section{position:relative;z-index:1;margin-bottom:14px;background:rgba(250,244,232,.88);border:1px solid rgba(160,140,110,.4);box-shadow:1px 2px 6px rgba(0,0,0,.14);padding:14px 20px;}
+    .mood-section-label{font-family:var(--heading-font);font-style:italic;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:12px;}
+    .mood-picker{display:flex;gap:6px;}
+    .mood-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;background:transparent;border:1px solid rgba(160,140,110,.3);cursor:pointer;border-radius:2px;transition:all .2s;}
+    .mood-btn:hover{border-color:var(--dusk-gold);background:rgba(212,154,74,.06);}
+    .mood-btn.selected{border-color:var(--dusk-orange);background:rgba(200,99,58,.08);box-shadow:inset 0 0 0 1px var(--dusk-orange);}
+    .mood-emoji{font-size:22px;line-height:1;}
+    .mood-label{font-family:var(--content-font);font-size:10.5px;color:var(--ink-soft);white-space:nowrap;}
+    .mood-btn.selected .mood-label{color:var(--dusk-orange);}
+
+    /* Tags (NEW) */
+    .memo-tag-section{position:relative;z-index:1;margin-bottom:14px;background:rgba(250,244,232,.88);border:1px solid rgba(160,140,110,.4);box-shadow:1px 2px 6px rgba(0,0,0,.14);padding:12px 20px;}
+    .tag-section-label{font-family:var(--heading-font);font-style:italic;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:10px;}
+    .day-tag-chips{display:flex;flex-wrap:wrap;gap:6px;}
+    .day-tag-chip{padding:4px 11px;font-size:11.5px;background:transparent;border:1px solid rgba(160,140,110,.4);cursor:pointer;border-radius:12px;font-family:var(--content-font);color:var(--ink-soft);transition:all .18s;}
+    .day-tag-chip:hover{border-color:var(--dusk-orange);color:var(--dusk-orange);}
+    .day-tag-chip.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+    .day-tag-chip.add{border-style:dashed;color:var(--ink-mute);}
+
+    /* ===== Stats View ===== */
+    .home-stats{flex:1;min-height:0;overflow-y:auto;padding-bottom:20px;}
+    .stats-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+    .stats-title{font-family:var(--heading-font);font-style:italic;font-size:18px;color:var(--ink-soft);}
+    .period-selector{display:flex;gap:4px;}
+    .period-btn{padding:5px 14px;font-size:12px;border:1px solid var(--rule);background:transparent;color:var(--ink-soft);cursor:pointer;border-radius:2px;font-family:var(--ui-font);transition:all .2s;}
+    .period-btn:hover{border-color:var(--dusk-orange);color:var(--dusk-orange);}
+    .period-btn.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+
+    .summary-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;}
+    .summary-card{background:var(--card);border:1px solid var(--paper-deep);padding:16px 18px;position:relative;overflow:hidden;}
+    .summary-card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;}
+    .summary-card.c-orange::before{background:var(--dusk-orange);}
+    .summary-card.c-gold::before{background:var(--dusk-gold);}
+    .summary-card.c-indigo::before{background:var(--night-indigo);}
+    .summary-card.c-pink::before{background:var(--dusk-pink);}
+    .sc-label{font-family:var(--heading-font);font-style:italic;font-size:11px;color:var(--ink-mute);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
+    .sc-value{font-family:var(--heading-font);font-size:34px;font-weight:500;color:var(--ink);line-height:1;}
+    .sc-unit{font-family:var(--heading-font);font-style:italic;font-size:13px;color:var(--ink-faint);margin-left:3px;}
+    .sc-sub{font-family:var(--heading-font);font-style:italic;font-size:11px;color:var(--ink-mute);margin-top:4px;}
+
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .stats-panel{background:var(--card);border:1px solid var(--paper-deep);padding:20px 22px;}
+    .stats-panel.full{grid-column:1/-1;}
+    .stats-panel h3{font-family:var(--content-font);font-size:15px;color:var(--ink);margin-bottom:16px;border-bottom:1px dotted var(--rule);padding-bottom:7px;display:flex;align-items:baseline;gap:10px;}
+    .stats-panel-note{font-family:var(--heading-font);font-style:italic;font-size:11px;color:var(--ink-mute);margin-left:auto;}
+
+    /* World ranking */
+    .rank-list{display:flex;flex-direction:column;gap:9px;}
+    .rank-item{display:grid;grid-template-columns:18px 1fr 44px;gap:10px;align-items:center;}
+    .rank-num{font-family:var(--heading-font);font-style:italic;font-size:15px;color:var(--ink-faint);text-align:right;}
+    .rank-num.gold{color:var(--dusk-gold);}
+    .rank-name{font-family:var(--content-font);font-size:12.5px;color:var(--ink);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .rank-bg{height:5px;background:var(--paper-deep);border-radius:3px;overflow:hidden;}
+    .rank-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--dusk-orange),var(--dusk-gold));}
+    .rank-count{font-family:var(--heading-font);font-style:italic;font-size:14px;color:var(--ink-soft);text-align:right;}
+    .rank-count span{font-size:10px;color:var(--ink-mute);}
+
+    /* Weekday avg chart */
+    .weekday-chart{display:flex;gap:8px;align-items:flex-end;height:100px;}
+    .wd-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;}
+    .wd-count{font-family:var(--heading-font);font-style:italic;font-size:10px;color:var(--ink-faint);line-height:1;}
+    .wd-bar{width:100%;border-radius:2px 2px 0 0;background:linear-gradient(180deg,var(--dusk-gold),var(--dusk-orange));}
+    .wd-bar.hi{background:linear-gradient(180deg,var(--dusk-orange),var(--dusk-red));}
+    .wd-label{font-family:var(--heading-font);font-style:italic;font-size:11px;color:var(--ink-faint);}
+
+    /* Monthly trend (horizontal bars) */
+    .monthly-list{display:flex;flex-direction:column;gap:8px;}
+    .monthly-row{display:grid;grid-template-columns:54px 1fr 32px;gap:8px;align-items:center;}
+    .monthly-label{font-family:var(--heading-font);font-style:italic;font-size:11px;color:var(--ink-faint);text-align:right;}
+    .monthly-label.current{color:var(--dusk-orange);}
+    .monthly-bar-bg{height:10px;background:var(--paper-deep);border-radius:3px;overflow:hidden;}
+    .monthly-bar{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--dusk-orange),var(--dusk-gold));}
+    .monthly-bar.dim{background:linear-gradient(90deg,var(--ink-mute),var(--rule));}
+    .monthly-bar.current{background:linear-gradient(90deg,var(--dusk-red),var(--dusk-orange));}
+    .monthly-count{font-family:var(--heading-font);font-style:italic;font-size:12px;color:var(--ink-soft);}
+    .monthly-count.current{color:var(--dusk-orange);}
+
+    /* Hit-rate heatmap */
+    .heatmap-labels-row{display:grid;grid-template-columns:28px repeat(24,1fr);gap:2px;margin-bottom:4px;}
+    .hm-label{font-family:var(--heading-font);font-style:italic;font-size:10px;color:var(--ink-faint);display:flex;align-items:center;}
+    .hm-hour-label{font-family:var(--heading-font);font-style:italic;font-size:9px;color:var(--ink-mute);text-align:center;}
+    .heatmap-row{display:grid;grid-template-columns:28px repeat(24,1fr);gap:2px;margin-bottom:2px;}
+    .hm-cell{height:14px;border-radius:2px;background:var(--paper-warm);cursor:default;}
+    .hm-cell.h1{background:rgba(200,99,58,.15);}
+    .hm-cell.h2{background:rgba(200,99,58,.30);}
+    .hm-cell.h3{background:rgba(200,99,58,.52);}
+    .hm-cell.h4{background:rgba(200,99,58,.72);}
+    .hm-cell.h5{background:rgba(200,99,58,.90);}
+    .hm-legend{display:flex;align-items:center;gap:4px;margin-top:10px;justify-content:flex-end;}
+    .hm-legend-label{font-family:var(--heading-font);font-style:italic;font-size:10px;color:var(--ink-mute);}
+    .hm-legend-swatch{width:12px;height:12px;border-radius:2px;}
+
+    /* ===== Settings Page ===== */
+    .settings-page{display:flex;flex-direction:column;flex:1;overflow-y:auto;font-family:var(--settings-font);padding:20px 28px;}
+    .setting-section{background:var(--card);border:1px solid var(--paper-deep);margin-bottom:14px;padding:20px 24px;}
+    .setting-section h3{font-family:var(--content-font);font-size:18px;margin-bottom:14px;color:var(--ink);border-bottom:1px dotted var(--rule);padding-bottom:8px;}
+    .setting-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px dotted rgba(201,184,150,.5);}
+    .setting-row:last-child{border-bottom:none;}
+    .setting-row .label{font-size:14px;color:var(--ink);}
+    .setting-row select{font-family:var(--content-font);font-size:13px;padding:7px 28px 7px 12px;border:none;border-bottom:2px solid rgba(140,170,210,.4);background:var(--paper);color:var(--ink);appearance:none;outline:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234a3d2e'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:10px 6px;}
+    .toggle-row{display:flex;gap:6px;}
+    .toggle-btn{padding:5px 14px;font-size:12px;background:transparent;border:1px solid var(--rule);cursor:pointer;font-family:inherit;color:var(--ink-soft);transition:all .2s;border-radius:2px;}
+    .toggle-btn:hover{border-color:var(--dusk-orange);}
+    .toggle-btn.on{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+    .speaker-input{width:64px;padding:5px 8px;font-family:inherit;font-size:13px;background:var(--paper);border:1px solid var(--rule);color:var(--ink);border-radius:2px;text-align:center;}
+    .vv-speaker-wrap{display:flex;align-items:center;gap:10px;}
+    .vv-speaker-select{font-family:var(--content-font);font-size:13px;padding:7px 28px 7px 12px;border:none;border-bottom:2px solid rgba(140,170,210,.4);min-width:160px;background:var(--paper);color:var(--ink);appearance:none;outline:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234a3d2e'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;background-size:10px 6px;}
+    .setting-row-disabled{opacity:.5;}
+    .settings-bottom-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+    .settings-bottom-row .setting-section{margin-bottom:0;}
+
+    /* Creator profile */
+    .creator-profile{display:flex;flex-direction:column;gap:14px;padding:4px 0;}
+    .creator-top{display:flex;align-items:center;gap:20px;}
+    .creator-avatar{width:80px;height:80px;border-radius:50%;border:3px solid var(--paper-deep);background:var(--paper-warm);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:32px;}
+    .creator-name{font-family:var(--content-font);font-size:26px;font-weight:500;color:var(--ink);}
+    .creator-links{display:flex;flex-direction:column;}
+    .creator-link-row{display:grid;grid-template-columns:80px 1fr;gap:12px;font-size:13px;line-height:1.6;padding:4px 0;border-bottom:1px dotted rgba(201,184,150,.4);}
+    .creator-link-row:last-child{border-bottom:none;}
+    .link-label{font-family:var(--content-font);color:var(--ink);}
+    .link-url{font-family:var(--content-font);color:var(--ink-faint);user-select:text;}
+
+    /* Credits */
+    .credits-table{display:flex;flex-direction:column;}
+    .credits-category{font-family:var(--heading-font);font-style:italic;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-faint);padding:8px 0 4px;border-bottom:1px solid rgba(201,184,150,.3);margin-bottom:2px;}
+    .credits-row{display:grid;grid-template-columns:1fr 100px;gap:8px;padding:5px 0;border-bottom:1px dotted rgba(201,184,150,.4);font-size:12px;line-height:1.5;align-items:baseline;}
+    .credits-row:last-child{border-bottom:none;}
+    .credits-label{font-family:var(--content-font);color:var(--ink);}
+    .credits-author{font-family:var(--content-font);color:var(--ink-faint);font-size:11px;}
+
+    /* Integration */
+    .integration-wrap{display:flex;align-items:center;gap:10px;}
+    .integration-status{font-family:var(--heading-font);font-style:italic;font-size:13px;color:var(--ink-faint);}
+    .integration-status.connected{color:#1a7a66;}
+
+    /* Data management (NEW - simplified) */
+    .data-section-note{font-family:var(--heading-font);font-style:italic;font-size:12px;color:var(--ink-mute);line-height:1.6;margin-bottom:4px;}
+    .data-row-label .sub-label{font-family:var(--heading-font);font-style:italic;font-size:11px;color:var(--ink-mute);margin-top:2px;}
+    .data-btn-secondary{padding:7px 18px;font-size:12.5px;cursor:pointer;font-family:inherit;border-radius:2px;transition:all .2s;background:transparent;color:var(--ink-soft);border:1px solid var(--rule);}
+    .data-btn-secondary:hover{border-color:var(--dusk-orange);color:var(--dusk-orange);}
+    .data-btn-danger{padding:7px 18px;font-size:12.5px;cursor:pointer;font-family:inherit;border-radius:2px;background:transparent;color:rgba(142,53,40,.7);border:1px solid rgba(142,53,40,.25);transition:all .2s;}
+    .data-btn-danger:hover{background:rgba(142,53,40,.06);color:var(--dusk-red);}
+
+    /* New badge */
+    .new-badge{display:inline-block;padding:1px 5px;background:var(--dusk-orange);color:var(--paper);font-size:9px;border-radius:2px;font-family:var(--ui-font);font-style:normal;vertical-align:2px;margin-left:5px;}
+  </style>
+</head>
+<body>
+
+<div class="mockup-bar">
+  <div class="mockup-label">✦ Mira Feature Mockup v2</div>
+  <div class="mockup-tab active" onclick="show('s1',this)">① HOME — 統計ビュー</div>
+  <div class="mockup-tab" onclick="show('s2',this)">② HOME — フォーカス＋ムード・タグ</div>
+  <div class="mockup-tab" onclick="show('s3',this)">③ Settings</div>
+</div>
+
+<div class="app-shell">
+
+<!-- ================================================================
+     SCREEN 1: HOME > 統計ビュー
+     ================================================================ -->
+<div class="screen active" id="s1">
+  <nav class="navbar">
+    <div class="navbar-logo">Mira</div>
+    <div class="navbar-tabs">
+      <button class="navbar-tab active">Home</button>
+      <button class="navbar-tab">Calendar</button>
+      <button class="navbar-tab">Settings</button>
+    </div>
+  </nav>
+  <div class="home-page">
+    <div class="page-head">
+      <h1>Journal</h1>
+      <span class="sub">6/2 〜 6/8 の週</span>
+    </div>
+    <div class="home-mode-tabs">
+      <button class="home-mode-tab" onclick="switchMode(this)">タイムライン</button>
+      <button class="home-mode-tab active" onclick="switchMode(this)">統計 <span class="new-badge">NEW</span></button>
+    </div>
+
+    <div class="home-stats">
+      <div class="stats-header">
+        <div class="stats-title">Activity Overview</div>
+        <div class="period-selector">
+          <button class="period-btn" onclick="setPeriod(this)">7日</button>
+          <button class="period-btn active" onclick="setPeriod(this)">30日</button>
+          <button class="period-btn" onclick="setPeriod(this)">90日</button>
+          <button class="period-btn" onclick="setPeriod(this)">全期間</button>
+        </div>
+      </div>
+
+      <div class="summary-cards">
+        <div class="summary-card c-orange">
+          <div class="sc-label">Active Days</div>
+          <div class="sc-value">18<span class="sc-unit">日</span></div>
+          <div class="sc-sub">過去30日間</div>
+        </div>
+        <div class="summary-card c-gold">
+          <div class="sc-label">Sessions</div>
+          <div class="sc-value">47<span class="sc-unit">回</span></div>
+          <div class="sc-sub">ワールド訪問合計</div>
+        </div>
+        <div class="summary-card c-indigo">
+          <div class="sc-label">Memo Days</div>
+          <div class="sc-value">12<span class="sc-unit">日</span></div>
+          <div class="sc-sub">記録した日数</div>
+        </div>
+        <div class="summary-card c-pink">
+          <div class="sc-label">Memo Chars</div>
+          <div class="sc-value">3.2<span class="sc-unit">k</span></div>
+          <div class="sc-sub">合計文字数</div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+
+        <!-- World ranking -->
+        <div class="stats-panel">
+          <h3>よく訪れたワールド <span class="stats-panel-note">top 5</span></h3>
+          <div class="rank-list">
+            <div class="rank-item">
+              <div class="rank-num gold">1</div>
+              <div><div class="rank-name">Midnight Synapse</div><div class="rank-bg"><div class="rank-fill" style="width:100%"></div></div></div>
+              <div class="rank-count">12 <span>回</span></div>
+            </div>
+            <div class="rank-item">
+              <div class="rank-num gold">2</div>
+              <div><div class="rank-name">Cozy Campfire Lounge</div><div class="rank-bg"><div class="rank-fill" style="width:75%"></div></div></div>
+              <div class="rank-count">9 <span>回</span></div>
+            </div>
+            <div class="rank-item">
+              <div class="rank-num gold">3</div>
+              <div><div class="rank-name">Serene Ryokan</div><div class="rank-bg"><div class="rank-fill" style="width:58%"></div></div></div>
+              <div class="rank-count">7 <span>回</span></div>
+            </div>
+            <div class="rank-item">
+              <div class="rank-num">4</div>
+              <div><div class="rank-name">Urban Night Market</div><div class="rank-bg"><div class="rank-fill" style="width:42%"></div></div></div>
+              <div class="rank-count">5 <span>回</span></div>
+            </div>
+            <div class="rank-item">
+              <div class="rank-num">5</div>
+              <div><div class="rank-name">Crystal Caves Exhibition</div><div class="rank-bg"><div class="rank-fill" style="width:33%"></div></div></div>
+              <div class="rank-count">4 <span>回</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Weekday avg chart -->
+        <div class="stats-panel">
+          <h3>曜日別アクティビティ <span class="stats-panel-note">セッション平均 / 週</span></h3>
+          <div class="weekday-chart">
+            <div class="wd-bar-wrap">
+              <div class="wd-count">0.8</div>
+              <div class="wd-bar" style="height:30px"></div>
+              <div class="wd-label">月</div>
+            </div>
+            <div class="wd-bar-wrap">
+              <div class="wd-count">0.5</div>
+              <div class="wd-bar" style="height:18px"></div>
+              <div class="wd-label">火</div>
+            </div>
+            <div class="wd-bar-wrap">
+              <div class="wd-count">1.0</div>
+              <div class="wd-bar" style="height:38px"></div>
+              <div class="wd-label">水</div>
+            </div>
+            <div class="wd-bar-wrap">
+              <div class="wd-count">0.3</div>
+              <div class="wd-bar" style="height:12px"></div>
+              <div class="wd-label">木</div>
+            </div>
+            <div class="wd-bar-wrap">
+              <div class="wd-count">1.3</div>
+              <div class="wd-bar hi" style="height:48px"></div>
+              <div class="wd-label">金</div>
+            </div>
+            <div class="wd-bar-wrap">
+              <div class="wd-count">2.0</div>
+              <div class="wd-bar hi" style="height:78px"></div>
+              <div class="wd-label">土</div>
+            </div>
+            <div class="wd-bar-wrap">
+              <div class="wd-count">1.8</div>
+              <div class="wd-bar hi" style="height:68px"></div>
+              <div class="wd-label">日</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Monthly trend -->
+        <div class="stats-panel">
+          <h3>月別アクティビティ推移 <span class="stats-panel-note">アクティブ日数</span></h3>
+          <div class="monthly-list">
+            <div class="monthly-row"><div class="monthly-label">Jun '25</div><div class="monthly-bar-bg"><div class="monthly-bar dim" style="width:55%"></div></div><div class="monthly-count">17</div></div>
+            <div class="monthly-row"><div class="monthly-label">Jul '25</div><div class="monthly-bar-bg"><div class="monthly-bar" style="width:58%"></div></div><div class="monthly-count">18</div></div>
+            <div class="monthly-row"><div class="monthly-label">Aug '25</div><div class="monthly-bar-bg"><div class="monthly-bar" style="width:71%"></div></div><div class="monthly-count">22</div></div>
+            <div class="monthly-row"><div class="monthly-label">Sep '25</div><div class="monthly-bar-bg"><div class="monthly-bar" style="width:48%"></div></div><div class="monthly-count">15</div></div>
+            <div class="monthly-row"><div class="monthly-label">Oct '25</div><div class="monthly-bar-bg"><div class="monthly-bar" style="width:32%"></div></div><div class="monthly-count">10</div></div>
+            <div class="monthly-row"><div class="monthly-label">Nov '25</div><div class="monthly-bar-bg"><div class="monthly-bar" style="width:61%"></div></div><div class="monthly-count">19</div></div>
+            <div class="monthly-row"><div class="monthly-label">Dec '25</div><div class="monthly-bar-bg"><div class="monthly-bar" style="width:74%"></div></div><div class="monthly-count">23</div></div>
+            <div class="monthly-row"><div class="monthly-label">Jan '26</div><div class="monthly-bar-bg"><div class="monthly-bar" style="width:45%"></div></div><div class="monthly-count">14</div></div>
+            <div class="monthly-row"><div class="monthly-label">Feb '26</div><div class="monthly-bar-bg"><div class="monthly-bar" style="width:39%"></div></div><div class="monthly-count">11</div></div>
+            <div class="monthly-row"><div class="monthly-label">Mar '26</div><div class="monthly-bar-bg"><div class="monthly-bar" style="width:81%"></div></div><div class="monthly-count">25</div></div>
+            <div class="monthly-row"><div class="monthly-label">Apr '26</div><div class="monthly-bar-bg"><div class="monthly-bar" style="width:65%"></div></div><div class="monthly-count">20</div></div>
+            <div class="monthly-row"><div class="monthly-label">May '26</div><div class="monthly-bar-bg"><div class="monthly-bar" style="width:58%"></div></div><div class="monthly-count">18</div></div>
+            <div class="monthly-row"><div class="monthly-label current">Jun '26</div><div class="monthly-bar-bg"><div class="monthly-bar current" style="width:26%"></div></div><div class="monthly-count current">8 <span style="font-size:9px;color:var(--ink-mute)">途中</span></div></div>
+          </div>
+        </div>
+
+        <!-- Hit-rate heatmap -->
+        <div class="stats-panel">
+          <h3>時間帯別ログイン傾向 <span class="stats-panel-note">その曜日×時間に入った割合</span></h3>
+          <div class="heatmap-labels-row">
+            <div></div>
+            <div class="hm-hour-label">0</div><div class="hm-hour-label">1</div>
+            <div class="hm-hour-label">2</div><div class="hm-hour-label">3</div>
+            <div class="hm-hour-label">4</div><div class="hm-hour-label">5</div>
+            <div class="hm-hour-label">6</div><div class="hm-hour-label">7</div>
+            <div class="hm-hour-label">8</div><div class="hm-hour-label">9</div>
+            <div class="hm-hour-label">10</div><div class="hm-hour-label">11</div>
+            <div class="hm-hour-label">12</div><div class="hm-hour-label">13</div>
+            <div class="hm-hour-label">14</div><div class="hm-hour-label">15</div>
+            <div class="hm-hour-label">16</div><div class="hm-hour-label">17</div>
+            <div class="hm-hour-label">18</div><div class="hm-hour-label">19</div>
+            <div class="hm-hour-label">20</div><div class="hm-hour-label">21</div>
+            <div class="hm-hour-label">22</div><div class="hm-hour-label">23</div>
+          </div>
+          <div id="heatmap-grid"></div>
+          <div class="hm-legend">
+            <span class="hm-legend-label">0%</span>
+            <div class="hm-legend-swatch hm-cell"></div>
+            <div class="hm-legend-swatch hm-cell h1"></div>
+            <div class="hm-legend-swatch hm-cell h2"></div>
+            <div class="hm-legend-swatch hm-cell h3"></div>
+            <div class="hm-legend-swatch hm-cell h4"></div>
+            <div class="hm-legend-swatch hm-cell h5"></div>
+            <span class="hm-legend-label">100%</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     SCREEN 2: HOME > フォーカス + ムード・タグ
+     ================================================================ -->
+<div class="screen" id="s2">
+  <nav class="navbar">
+    <div class="navbar-logo">Mira</div>
+    <div class="navbar-tabs">
+      <button class="navbar-tab active">Home</button>
+      <button class="navbar-tab">Calendar</button>
+      <button class="navbar-tab">Settings</button>
+    </div>
+  </nav>
+  <div class="home-page" style="padding-bottom:20px">
+    <div class="page-head">
+      <h1>Journal</h1>
+      <span class="sub">6/2 〜 6/8 の週</span>
+    </div>
+    <div class="home-mode-tabs">
+      <button class="home-mode-tab" onclick="switchMode(this)">タイムライン</button>
+      <button class="home-mode-tab active" onclick="switchMode(this)">統計</button>
+    </div>
+
+    <!-- back-btn (focus-mode で表示) -->
+    <button style="display:inline-flex;align-items:center;margin-bottom:16px;align-self:flex-start;padding:7px 20px;background:transparent;border:1px solid var(--rule);color:var(--ink-soft);font-family:var(--heading-font);font-style:italic;font-size:14px;letter-spacing:.1em;cursor:pointer;border-radius:2px;">
+      ‹ 週間に戻る
+    </button>
+
+    <div class="home-layout" style="min-height:0">
+      <!-- lane-wrap (focus 22%) -->
+      <div class="lane-wrap" style="flex:0 0 22%;max-width:22%;min-height:0">
+        <div class="lane-header" style="grid-template-columns:50px 1fr">
+          <div class="lane-corner"></div>
+          <div class="day-head today" style="background:rgba(212,154,74,.12)">
+            <div class="wd">SAT</div>
+            <div class="num" style="color:var(--dusk-orange)">7</div>
+          </div>
+        </div>
+        <div class="lane-body" style="grid-template-columns:50px 1fr;overflow-y:auto;flex:1">
+          <div class="time-axis" style="height:360px">
+            <div class="hour-mark" style="top:0%">18:00</div>
+            <div class="hour-mark" style="top:16.6%">20:00</div>
+            <div class="hour-mark" style="top:33.3%">22:00</div>
+            <div class="hour-mark" style="top:50%">0:00</div>
+            <div class="hour-mark" style="top:66.6%">2:00</div>
+            <div class="hour-mark" style="top:83.3%">4:00</div>
+          </div>
+          <div class="day-lane" style="height:360px;cursor:default">
+            <div class="visit-block" style="top:16%;height:24%;background:rgba(200,99,58,.25);border-left-color:#c8633a">
+              <span class="v-name">Midnight Synapse</span>
+              <span class="v-time">21:00 – 23:30</span>
+            </div>
+            <div class="visit-block" style="top:50%;height:18%;background:rgba(100,140,180,.25);border-left-color:#6488b4">
+              <span class="v-name">Serene Ryokan</span>
+              <span class="v-time">0:00 – 1:50</span>
+            </div>
+          </div>
+        </div>
+        <div class="lane-foot">Shift + ホイールでズーム</div>
+      </div>
+
+      <!-- memo-paper -->
+      <div class="memo-paper">
+        <div class="memo-inner">
+          <div class="memo-date">JUN 07 · SAT</div>
+
+          <!-- ★NEW★ ムードピッカー -->
+          <div class="memo-mood-section">
+            <div class="mood-section-label">Today's Mood <span class="new-badge">NEW</span></div>
+            <div class="mood-picker">
+              <button class="mood-btn" onclick="selMood(this)"><span class="mood-emoji">😄</span><span class="mood-label">最高</span></button>
+              <button class="mood-btn selected" onclick="selMood(this)"><span class="mood-emoji">😊</span><span class="mood-label">楽しかった</span></button>
+              <button class="mood-btn" onclick="selMood(this)"><span class="mood-emoji">😌</span><span class="mood-label">穏やか</span></button>
+              <button class="mood-btn" onclick="selMood(this)"><span class="mood-emoji">😐</span><span class="mood-label">普通</span></button>
+              <button class="mood-btn" onclick="selMood(this)"><span class="mood-emoji">😔</span><span class="mood-label">疲れた</span></button>
+            </div>
+          </div>
+
+          <!-- ★NEW★ タグ -->
+          <div class="memo-tag-section">
+            <div class="tag-section-label">Tags <span class="new-badge">NEW</span></div>
+            <div class="day-tag-chips">
+              <button class="day-tag-chip active" onclick="this.classList.toggle('active')">🌍 新ワールド探索</button>
+              <button class="day-tag-chip" onclick="this.classList.toggle('active')">🎉 イベント参加</button>
+              <button class="day-tag-chip active" onclick="this.classList.toggle('active')">📸 写真撮影</button>
+              <button class="day-tag-chip" onclick="this.classList.toggle('active')">🎮 ゲーム</button>
+              <button class="day-tag-chip" onclick="this.classList.toggle('active')">🎵 音楽・ライブ</button>
+              <button class="day-tag-chip" onclick="this.classList.toggle('active')">💬 雑談メイン</button>
+              <button class="day-tag-chip" onclick="this.classList.toggle('active')">🎨 制作活動</button>
+              <button class="day-tag-chip add">＋</button>
+            </div>
+          </div>
+
+          <!-- 既存 memo-note-card -->
+          <div class="memo-note-card">
+            <div class="memo-textarea-sim">Midnight Synapseで久しぶりに集まった。夜の9時ごろからSeismic_Rくん、Luminos_さんと合流して、気がついたら3時間も経ってた。
+
+新しいワールドを試したら雰囲気がとても良くて、写真をたくさん撮った。</div>
+            <div class="memo-counter">68 / 1000</div>
+          </div>
+
+          <!-- 既存 memo-stats -->
+          <div class="memo-stats">
+            <div class="memo-stat"><div class="lbl">滞在</div><div class="val"><span class="num">3</span>時間30分</div></div>
+            <div class="memo-stat"><div class="lbl">人物</div><div class="val"><span class="num">3</span>人</div></div>
+            <div class="memo-stat"><div class="lbl">写真</div><div class="val"><span class="num">14</span>枚</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     SCREEN 3: SETTINGS（実際の設定画面を忠実に再現）
+     ================================================================ -->
+<div class="screen" id="s3">
+  <nav class="navbar">
+    <div class="navbar-logo">Mira</div>
+    <div class="navbar-tabs">
+      <button class="navbar-tab">Home</button>
+      <button class="navbar-tab">Calendar</button>
+      <button class="navbar-tab active">Settings</button>
+    </div>
+  </nav>
+  <div class="settings-page">
+    <div class="page-head" style="margin-bottom:20px;position:relative">
+      <h1>Settings</h1><span class="sub">Mira の設定</span>
+      <style>.settings-page .page-head::after{content:"";position:absolute;bottom:-2px;left:0;width:60px;height:1px;background:var(--dusk-orange)}</style>
+    </div>
+
+    <!-- メモ書体 -->
+    <div class="setting-section">
+      <h3>メモ書体</h3>
+      <div class="setting-row">
+        <span class="label">書体</span>
+        <select>
+          <option selected>Yomogi</option>
+          <option>Yusei Magic</option>
+          <option>Kiwi Maru</option>
+          <option>Hachi Maru Pop</option>
+        </select>
+      </div>
+      <div class="setting-row">
+        <span class="label">書体適用範囲</span>
+        <div class="toggle-row">
+          <button class="toggle-btn on">メモのみ</button>
+          <button class="toggle-btn">アプリ全体</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 表示 -->
+    <div class="setting-section">
+      <h3>表示</h3>
+      <div class="setting-row">
+        <span class="label">ページ遷移アニメーション</span>
+        <div class="toggle-row">
+          <button class="toggle-btn on">ON</button>
+          <button class="toggle-btn">OFF</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="label">タイムライン開始時 (0–29)</span>
+        <input type="number" class="speaker-input" value="18" min="0" max="29" />
+      </div>
+      <div class="setting-row">
+        <span class="label">タイムライン終了時 (1–30)</span>
+        <input type="number" class="speaker-input" value="26" min="1" max="30" />
+      </div>
+    </div>
+
+    <!-- メモ -->
+    <div class="setting-section">
+      <h3>メモ</h3>
+      <div class="setting-row">
+        <span class="label">メモ最大文字数</span>
+        <input type="number" class="speaker-input" style="width:80px" value="1000" min="1" max="100000" />
+      </div>
+    </div>
+
+    <!-- レビュー -->
+    <div class="setting-section">
+      <h3>レビュー</h3>
+      <div class="setting-row">
+        <span class="label">スナップショット表示</span>
+        <div class="toggle-row">
+          <button class="toggle-btn on">ON</button>
+          <button class="toggle-btn">OFF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- リマインダー -->
+    <div class="setting-section">
+      <h3>リマインダー</h3>
+      <div class="setting-row">
+        <span class="label">通知音</span>
+        <div class="toggle-row">
+          <button class="toggle-btn on">ON</button>
+          <button class="toggle-btn">OFF</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="label">VOICEVOX 読み上げ</span>
+        <div class="toggle-row">
+          <button class="toggle-btn">ON</button>
+          <button class="toggle-btn on">OFF</button>
+        </div>
+      </div>
+      <div class="setting-row setting-row-disabled">
+        <span class="label">話者</span>
+        <div class="vv-speaker-wrap">
+          <select class="vv-speaker-select" disabled>
+            <option>四国めたん</option>
+            <option>ずんだもん</option>
+            <option>春日部つむぎ</option>
+            <option>東北ずん子</option>
+            <option>櫻歌ミコ</option>
+            <option>WhiteCUL</option>
+            <option>Voidoll</option>
+            <option>白上虎太郎</option>
+            <option>離途</option>
+          </select>
+          <button class="toggle-btn" disabled>テスト再生</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="label">予定追加時のデフォルト通知</span>
+        <select>
+          <option>5分前</option>
+          <option selected>10分前</option>
+          <option>15分前</option>
+          <option>20分前</option>
+          <option>30分前</option>
+          <option>1時間前</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- StellaRecord 連携 -->
+    <div class="setting-section">
+      <h3>StellaRecord 連携</h3>
+      <div class="setting-row">
+        <span class="label">連携状態</span>
+        <div class="integration-wrap">
+          <span class="integration-status connected">連携済み</span>
+          <button class="toggle-btn" disabled>連携する</button>
+          <button class="toggle-btn">解除する</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 制作者 | 使用素材 (2列) -->
+    <div class="settings-bottom-row">
+      <div class="setting-section">
+        <h3>制作者</h3>
+        <div class="creator-profile">
+          <div class="creator-top">
+            <div class="creator-avatar">🪐</div>
+            <div class="creator-name">ぷらねっと</div>
+          </div>
+          <div class="creator-links">
+            <div class="creator-link-row"><span class="link-label">lit.link</span><span class="link-url">https://lit.link/planet_vrc</span></div>
+            <div class="creator-link-row"><span class="link-label">Twitter</span><span class="link-url">https://x.com/planet_vrc</span></div>
+            <div class="creator-link-row"><span class="link-label">お問い合わせ</span><span class="link-url">https://cosmo-arts-store.booth.pm/</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="setting-section">
+        <h3>使用素材</h3>
+        <div class="credits-table">
+          <div class="credits-category">テクスチャ</div>
+          <div class="credits-row"><span class="credits-label">Wood026 / Cork001</span><span class="credits-author">ambientCG 様</span></div>
+          <div class="credits-category">サウンド</div>
+          <div class="credits-row"><span class="credits-label">フレーズ032 (通知音)</span><span class="credits-author">くらげ工匿 様</span></div>
+          <div class="credits-category">音声合成</div>
+          <div class="credits-row"><span class="credits-label">VOICEVOX</span><span class="credits-author">ヒホ 様</span></div>
+          <div class="credits-row"><span class="credits-label">四国めたん / ずんだもん / 東北ずん子</span><span class="credits-author">SSS合同会社 様</span></div>
+          <div class="credits-row"><span class="credits-label">春日部つむぎ / 櫻歌ミコ / WhiteCUL</span><span class="credits-author"></span></div>
+          <div class="credits-row"><span class="credits-label">Voidoll</span><span class="credits-author">NHN PlayArt 様</span></div>
+          <div class="credits-row"><span class="credits-label">白上虎太郎(CV:ガロ)</span><span class="credits-author">VirVox Project 様</span></div>
+          <div class="credits-row"><span class="credits-label">離途</span><span class="credits-author">LitMUS9 様</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ★NEW★ データ管理 — シンプルに DB コピーのみ -->
+    <div class="setting-section">
+      <h3>データ管理 <span class="new-badge">NEW</span></h3>
+      <div class="setting-row">
+        <div>
+          <div class="label">バックアップ</div>
+          <div style="font-family:var(--heading-font);font-style:italic;font-size:11px;color:var(--ink-mute);margin-top:2px;">mira.db を任意のフォルダにコピーして保存</div>
+        </div>
+        <button class="data-btn-secondary" onclick="alert('保存先フォルダを選択…')">バックアップを作成</button>
+      </div>
+      <div class="setting-row">
+        <div>
+          <div class="label">リストア</div>
+          <div style="font-family:var(--heading-font);font-style:italic;font-size:11px;color:var(--ink-mute);margin-top:2px;">バックアップの .db を選択して復元（再起動が必要）</div>
+        </div>
+        <button class="data-btn-danger" onclick="alert('バックアップファイルを選択…')">復元する…</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</div><!-- /app-shell -->
+
+<script>
+  function show(id, tab) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.mockup-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    tab.classList.add('active');
+    window.scrollTo(0, 0);
+  }
+  function switchMode(btn) {
+    btn.closest('.home-mode-tabs').querySelectorAll('.home-mode-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  function setPeriod(btn) {
+    btn.closest('.period-selector').querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  function selMood(btn) {
+    btn.closest('.mood-picker').querySelectorAll('.mood-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+  }
+
+  /* Heatmap (hit-rate pattern) */
+  (function() {
+    const days = ['月','火','水','木','金','土','日'];
+    // 各値は「その曜日×時間帯に入った割合」0=なし h1=〜20% h2=〜40% h3=〜60% h4=〜80% h5=100%
+    const pattern = [
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,3,4,2,1],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,3,4,5,3,1],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,2,2,3,3,4,2,1],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,2,1,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,2,2,3,4,5,5,3,2],
+      [0,0,0,0,0,0,0,0,1,1,1,2,2,2,3,3,4,4,5,5,5,5,4,2],
+      [0,0,0,0,0,0,0,0,0,1,1,2,2,2,3,3,4,4,5,5,5,4,3,1],
+    ];
+    const grid = document.getElementById('heatmap-grid');
+    if (!grid) return;
+    days.forEach((day, di) => {
+      const row = document.createElement('div');
+      row.className = 'heatmap-row';
+      const lbl = document.createElement('div');
+      lbl.className = 'hm-label'; lbl.textContent = day;
+      row.appendChild(lbl);
+      for (let h = 0; h < 24; h++) {
+        const cell = document.createElement('div');
+        const lv = pattern[di][h];
+        cell.className = 'hm-cell' + (lv > 0 ? ' h' + lv : '');
+        const pct = lv === 0 ? '0%' : ['','〜20%','〜40%','〜60%','〜80%','100%'][lv];
+        cell.title = `${day}曜 ${h}:00 — ${pct}`;
+        row.appendChild(cell);
+      }
+      grid.appendChild(row);
+    });
+  })();
+</script>
+</body>
+</html>

@@ -2,9 +2,6 @@
 
 > Mira のメインデータベース (`Data/db/mira.db`) のスキーマリファレンス。
 > スキーマ定義の一次情報は `src-tauri/src/db/migrations.rs` の `run` 関数。
->
-> **対象読者**: スキーマ定義・マイグレーション戦略・StellaRecord DB 参照経路を把握したい開発者および技術評価者。
-> **関連ドキュメント**: 各テーブルを利用する IPC コマンドの挙動は [spec.md](spec.md)、永続化方針の意思決定は [tech-stack.md](tech-stack.md) を参照。
 
 ## Table of Contents
 
@@ -18,11 +15,9 @@
   - [mira_manual_markers](#mira_manual_markers)
   - [mira_settings](#mira_settings)
   - [mira_dismissed_events](#mira_dismissed_events)
-- [Default Settings](#default-settings)
 - [Indexes](#indexes)
 - [Initialization and PRAGMA](#initialization-and-pragma)
 - [Migrations](#migrations)
-- [StellaRecord DB References](#stellarecord-db-references)
 - [Backup and Restore](#backup-and-restore)
 - [Performance Notes](#performance-notes)
 
@@ -263,6 +258,28 @@ key-value 形式のアプリ全体設定。
 - `get_settings` は知られたキーを `MiraSettings` 構造体に整形して返し、未知キーは無視。
 - ブール値は `"0"` / `"1"`、数値は文字列化された整数として保存。
 
+**Default Settings**
+
+`migrations.rs::run` で投入される `mira_settings` のデフォルト値。
+
+| Key                      | Default Value  | Type Hint |
+| ------------------------ | -------------- | --------- |
+| `font_family`            | `Yomogi`       | TEXT      |
+| `font_scope`             | `content_only` | TEXT      |
+| `memo_max_length`        | `1000`         | INTEGER   |
+| `transition_enabled`     | `1`            | BOOLEAN   |
+| `snapshot_enabled`       | `1`            | BOOLEAN   |
+| `last_snapshot_seen`     | `` (空)        | TEXT      |
+| `last_annual_seen`       | `` (空)        | TEXT      |
+| `onboarding_completed`   | `0`            | BOOLEAN   |
+| `view_hour_start`        | `` (空 = 自動) | INTEGER   |
+| `view_hour_end`          | `` (空 = 自動) | INTEGER   |
+| `voicevox_enabled`       | `0`            | BOOLEAN   |
+| `voice_character`        | `metan`        | TEXT      |
+| `reminder_sound_enabled` | `1`            | BOOLEAN   |
+
+`INSERT OR IGNORE` のため、既存値は温存される。
+
 ---
 
 ### mira_dismissed_events
@@ -287,32 +304,6 @@ key-value 形式のアプリ全体設定。
 - 非繰り返し予定: `source_ref = "<event_id>"`
 - 繰り返し予定: `source_ref = "<event_id>_YYYY-MM-DD"` (発火日付を含める)
 - `get_pending_notifications` は `mira_dismissed_events` の `source_ref` を除外して返す。
-
----
-
-## Default Settings
-
-`migrations.rs::run` で投入される `mira_settings` のデフォルト値。
-
-| Key                      | Default Value  | Type Hint |
-| ------------------------ | -------------- | --------- |
-| `font_family`            | `Yomogi`       | TEXT      |
-| `font_scope`             | `content_only` | TEXT      |
-| `memo_max_length`        | `1000`         | INTEGER   |
-| `transition_enabled`     | `1`            | BOOLEAN   |
-| `snapshot_enabled`       | `1`            | BOOLEAN   |
-| `last_snapshot_seen`     | `` (空)        | TEXT      |
-| `last_annual_seen`       | `` (空)        | TEXT      |
-| `onboarding_completed`   | `0`            | BOOLEAN   |
-| `view_hour_start`        | `` (空 = 自動) | INTEGER   |
-| `view_hour_end`          | `` (空 = 自動) | INTEGER   |
-| `voicevox_enabled`       | `0`            | BOOLEAN   |
-| `voice_character`        | `metan`        | TEXT      |
-| `reminder_sound_enabled` | `1`            | BOOLEAN   |
-
-`INSERT OR IGNORE` のため、既存値は温存される。
-
----
 
 ## Indexes
 
@@ -381,32 +372,6 @@ pub fn open_or_create() -> Result<Connection> {
 
 現状は `PRAGMA user_version` でスキーマバージョンを管理する。`migrations::run` は現在値を読み、未適用ステップだけを順に実行し、完了後に `CURRENT_SCHEMA_VERSION` を書き込む。各ステップは `IF NOT EXISTS` と列存在確認を併用し、既存環境での再実行にも耐える。
 
----
-
-## StellaRecord DB References
-
-Mira は以下の StellaRecord DB テーブル・ビューを **読み取り専用** で参照する。詳細スキーマは [StellaRecord docs/database.md](https://github.com/cosmoartsstore-private/stellarecord/blob/master/docs/database.md) を参照。
-
-| Referenced By                                | Table/View      | Purpose                           |
-| -------------------------------------------- | --------------- | --------------------------------- |
-| `commands::journal::get_week_lane_data`      | `visit_summary` | 1 日の訪問ブロック (滞在時間付き) |
-| `commands::journal::get_day_focus_data`      | `visit_summary` | 日次フォーカスの訪問ブロック      |
-| `commands::journal::get_day_focus_data`      | `with_users`    | 訪問単位の同席ユーザー            |
-| `commands::journal::get_day_focus_data`      | `screenshots`   | 日次写真リスト                    |
-| `commands::journal::get_day_focus_data`      | `find_users`    | ユーザー表示名カタログ            |
-| `commands::calendar::get_month_data`         | `visit_summary` | 月内アクティブ日の判定            |
-| `commands::stella::register_to_stellarecord` | `apps` (書込)   | 自己登録 (例外的に書込み)         |
-
-### Connection Mode
-
-- `Connection::open_with_flags(path, SQLITE_OPEN_READ_ONLY)`
-- `conn.busy_timeout(5 秒)` で StellaRecord の書込ロックを許容
-- `PRAGMA query_only = ON` で SELECT 以外を二重防御
-
-StellaRecord 未インストール時は `DbState.stella = Mutex<None>` となり、Mira の主機能は読込部分のみ無効化されて動作する。
-
----
-
 ## Backup and Restore
 
 ### Backup
@@ -453,12 +418,3 @@ DB ファイルは標準的な SQLite 3 形式のため、以下のツールで�
 - Mira DB のサイズはユーザー利用量に依存。一般的な利用 (1 年分のメモ + 1000 件の予定) で 1〜5 MB 程度。
 - 手動マーカーが大量に増えると `mira_manual_markers` が肥大化する可能性があるが、日付別ソート / 削除 UI で抑制可能。
 - VACUUM は自動実行しない。長期運用で削除が多発した場合のみ手動 VACUUM を検討する。
-
----
-
-## 関連ドキュメント
-
-- [spec.md](spec.md) — 各テーブルを利用する IPC コマンドの挙動・データフロー
-- [tech-stack.md](tech-stack.md) — `rusqlite` / WAL 採用の意思決定 (ADR-004)
-- [../README.md](../README.md) — ユーザー向け概要・データ取り扱いポリシー
-- [../DEVELOPMENT.md](../DEVELOPMENT.md) — ローカル DB のリセット手順・バックアップ

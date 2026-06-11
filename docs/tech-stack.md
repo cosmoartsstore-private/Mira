@@ -1,9 +1,6 @@
 # Tech Stack and Architecture Decisions
 
 > Mira で採用した技術の詳細リファレンスと、主要な技術選定の意思決定記録 (ADR: Architecture Decision Record)。
->
-> **対象読者**: 技術選定の経緯・依存バージョン・代替案の却下理由を把握したい開発者および技術評価者。
-> **関連ドキュメント**: 採用技術が実際にどう組み合わさるかの仕様は [spec.md](spec.md)、データベース構造は [database.md](database.md) を参照。バージョン番号の一次情報は `package.json` および `src-tauri/Cargo.toml`。
 
 ## Table of Contents
 
@@ -12,6 +9,7 @@
   - [Backend](#backend)
   - [Build and Distribution](#build-and-distribution)
   - [Quality and Tooling](#quality-and-tooling)
+  - [Testing and CI](#testing-and-ci)
   - [Assets](#assets)
 - [Architecture Decision Records](#architecture-decision-records)
   - [ADR-001 Application Framework: Tauri v2](#adr-001-application-framework-tauri-v2)
@@ -73,6 +71,12 @@ React 等の UI ライブラリは使用しない。状態管理は `Set<Listene
 | CSS Linter           | [Stylelint](https://stylelint.io/) (`stylelint-config-standard`)               | 16.25   |
 | Formatter            | [Prettier](https://prettier.io/)                                               | 3.6     |
 | Rust Linter          | clippy                                                                         | bundled |
+
+### Testing and CI
+
+- **単体テスト**: TypeScript の純ロジックは `*.test.ts`、Rust は `cargo test` で検証する。
+- **ローカル検証**: `npm run lint`, `npm run format:check`, `npm run stylelint`, `npm run build`, `cargo fmt --check`, `cargo clippy`, `cargo test` を変更範囲に応じて実行する。
+- **CI**: リポジトリ内の GitHub Actions 定義に従う。公開 docs ではローカルで実行すべき検証コマンドを一次情報として扱う。
 
 ### Assets
 
@@ -509,12 +513,3 @@ Tauri Bundler の NSIS ターゲットを採用し、`installer.nsi` をカス�
 | Tauri Updater                          | 現バージョンではスコープ外                            |
 | Sentry / Telemetry                     | ローカル完結ポリシーに反する                          |
 | i18next                                | 日本語固定、要件発生時に導入                          |
-
----
-
-## 関連ドキュメント
-
-- [spec.md](spec.md) — 採用技術が実際にどう組み合わさるかの機能仕様
-- [database.md](database.md) — SQLite スキーマ定義 (ADR-004 の具体形)
-- [../README.md](../README.md) — ユーザー向け概要・依存ランタイム
-- [../DEVELOPMENT.md](../DEVELOPMENT.md) — 開発環境セットアップと lint/format コマンド

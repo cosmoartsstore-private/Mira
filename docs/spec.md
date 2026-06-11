@@ -1,9 +1,6 @@
 # Specification
 
 > Mira の機能仕様書。アーキテクチャ・モジュール構成・IPC API・データフロー・並行性モデル・性能特性をリファレンス形式で記述する。
->
-> **対象読者**: Mira の機能挙動・モジュール構成・IPC コマンドを把握したい開発者および技術評価者。
-> **関連ドキュメント**: DB スキーマの詳細は [database.md](database.md) を、技術選定の経緯は [tech-stack.md](tech-stack.md) を参照。
 
 ## Table of Contents
 
@@ -25,6 +22,7 @@
 - [Data Flow](#data-flow)
 - [State Management](#state-management)
 - [Concurrency Model](#concurrency-model)
+- [Performance Characteristics](#performance-characteristics)
 - [StellaRecord Integration](#stellarecord-integration)
 - [Security Model](#security-model)
 - [Persistence](#persistence)
@@ -562,6 +560,19 @@ WAL モードにより、Mira DB / StellaRecord DB ともに書き込み中で�
 
 ---
 
+## Performance Characteristics
+
+| Area | Characteristic |
+| --- | --- |
+| Week lane | `visit_summary` を日付範囲で取得し、フロントエンドでレーン表示へ変換する |
+| Day focus | 訪問、同席ユーザー、写真、メモを日付単位でまとめて取得する |
+| Memo save | 1 秒のデバウンスで保存頻度を抑える |
+| Reminder | 30 秒間隔のポーリングと指数バックオフで一時失敗から復帰する |
+| Marker | Unicode scalar 単位で手動/自動マーカー座標を統一する |
+| Snapshot | 四半期/年間レビューは必要時に集計し、既読キーで再表示を制御する |
+
+---
+
 ## StellaRecord Integration
 
 ### Detection
@@ -677,12 +688,3 @@ StellaRecord 連携用に以下を参照 (Mira は書き込まない):
 | Windows のみ対応                                                | macOS / Linux で動作不可                   | 設計上 `winreg` 依存                                         |
 | コード署名なし                                                  | SmartScreen 警告                           | 商用配布時に対応予定                                         |
 | メモ最大長は固定 1000 文字                                      | 長文不可                                   | 設定で変更可能だがバックエンドの切り詰めも同期して変更が必要 |
-
----
-
-## 関連ドキュメント
-
-- [database.md](database.md) — Mira DB のスキーマ定義・マイグレーション戦略・StellaRecord DB 参照経路
-- [tech-stack.md](tech-stack.md) — 技術選定の経緯・依存バージョン・ADR
-- [../README.md](../README.md) — ユーザー向け概要・機能説明
-- [../DEVELOPMENT.md](../DEVELOPMENT.md) — 開発者向けセットアップ手順
